@@ -17,6 +17,15 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
 
+    ollama_base_url: str = "https://api.ollama.com/v1"
+    ollama_api_key: str | None = None
+    ollama_model: str = "glm-5.1"
+
+    ai_max_tokens: int = 4000
+    ai_temperature: float = 0.7
+    ai_cache_enabled: bool = True
+    ai_confidence_threshold: float = 0.7
+
     app_version: str = "0.1.0"
 
     class Config:
