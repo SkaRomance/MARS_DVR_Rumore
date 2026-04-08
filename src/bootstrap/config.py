@@ -21,8 +21,8 @@ class Settings(BaseSettings):
     ollama_api_key: str | None = None
     ollama_model: str = "glm-5.1"
 
-    ai_max_tokens: int = 4000
-    ai_temperature: float = 0.7
+    ai_max_tokens: int = 750
+    ai_temperature: float = 0.3
     ai_cache_enabled: bool = True
     ai_confidence_threshold: float = 0.7
 
