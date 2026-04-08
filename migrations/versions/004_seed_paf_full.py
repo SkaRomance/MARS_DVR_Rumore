@@ -133,10 +133,12 @@ def _insert_row(
     )
 
     # Escape single quotes
-    marca = marca.replace("'", "''")
-    modello = modello.replace("'", "''")
-    tipologia = tipologia.replace("'", "''")
-    alimentazione = alimentazione.replace("'", "''")
+    marca = marca.replace("'", "''")[:255]
+    modello = modello.replace("'", "''")[:255]
+    tipologia = tipologia.replace("'", "''")[:255]
+    alimentazione = alimentazione.replace("'", "''")[:100]
+    disclaimer = disclaimer.replace("'", "''")[:500]
+    url = url[:500]
 
     op.execute(f"""
         INSERT INTO noise_source_catalog (
