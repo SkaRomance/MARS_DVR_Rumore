@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import assessments, health
+from src.api.routes import assessments, health, ai_routes
 from src.bootstrap.config import get_settings
 
 settings = get_settings()
@@ -37,10 +37,17 @@ app.add_middleware(
 )
 
 app.include_router(health.router, prefix="/health", tags=["Health"])
-app.include_router(assessments.router, prefix=settings.api_v1_prefix, tags=["Assessments"])
+app.include_router(
+    assessments.router, prefix=settings.api_v1_prefix, tags=["Assessments"]
+)
+app.include_router(ai_routes.router, prefix=settings.api_v1_prefix, tags=["AI"])
 
 
 @app.get("/")
 async def root():
     """Root endpoint."""
-    return {"name": "MARS Noise Module API", "version": settings.app_version, "docs": "/docs"}
+    return {
+        "name": "MARS Noise Module API",
+        "version": settings.app_version,
+        "docs": "/docs",
+    }
