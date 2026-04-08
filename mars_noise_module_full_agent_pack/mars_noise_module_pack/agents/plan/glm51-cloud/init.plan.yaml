@@ -1,0 +1,26 @@
+mode: plan
+model: glm 5.1 cloud
+entry_context:
+  - CONTEXT.md
+  - PRD.md
+  - DATA_SOURCES_RESEARCH.md
+  - DATA_MODEL.md
+  - API_SPEC.md
+spawn_order:
+  - plan-orchestrator-senior
+  - product-manager-senior
+  - hse-italy-senior
+  - noise-risk-specialist-senior
+  - legal-normative-italy-senior
+  - solution-architect-senior
+  - data-architect-senior
+  - data-source-researcher-senior
+  - ux-design-senior
+  - consultant-workflow-senior
+  - ai-systems-designer-senior
+  - evals-designer-senior
+outputs:
+  - architecture_notes.md
+  - backlog_mvp.md
+  - ux_flow_notes.md
+  - ai_prompt_framework.md

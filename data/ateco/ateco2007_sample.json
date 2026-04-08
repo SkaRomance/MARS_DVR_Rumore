@@ -1,0 +1,92 @@
+[
+  {
+    "codice": "01.11.00",
+    "descrizione": "Coltivazione di cereali (eccetto riso)",
+    "categoria": "A",
+    "sezione": "A - AGRICOLTURA, SILVICOLTURA E PESCA"
+  },
+  {
+    "codice": "01.12.00",
+    "descrizione": "Coltivazione di riso",
+    "categoria": "A",
+    "sezione": "A - AGRICOLTURA, SILVICOLTURA E PESCA"
+  },
+  {
+    "codice": "25.11.00",
+    "descrizione": "Fabbricazione di elementi strutturali in metallo",
+    "categoria": "C",
+    "sezione": "C - INDUSTRIA MANIFATTURIERA"
+  },
+  {
+    "codice": "25.12.00",
+    "descrizione": "Fabbricazione di porte e finestre in metallo",
+    "categoria": "C",
+    "sezione": "C - INDUSTRIA MANIFATTURIERA"
+  },
+  {
+    "codice": "28.11.00",
+    "descrizione": "Fabbricazione di motori e turbine (eccetto motori per aeromobili e veicoli)",
+    "categoria": "C",
+    "sezione": "C - INDUSTRIA MANIFATTURIERA"
+  },
+  {
+    "codice": "28.12.00",
+    "descrizione": "Fabbricazione di apparecchiature fluidodinamiche",
+    "categoria": "C",
+    "sezione": "C - INDUSTRIA MANIFATTURIERA"
+  },
+  {
+    "codice": "33.12.00",
+    "descrizione": "Riparazione e manutenzione di macchinari",
+    "categoria": "C",
+    "sezione": "C - INDUSTRIA MANIFATTURIERA"
+  },
+  {
+    "codice": "41.20.00",
+    "descrizione": "Costruzione di edifici",
+    "categoria": "F",
+    "sezione": "F - COSTRUZIONI"
+  },
+  {
+    "codice": "43.11.00",
+    "descrizione": "Demolizione",
+    "categoria": "F",
+    "sezione": "F - COSTRUZIONI"
+  },
+  {
+    "codice": "43.12.00",
+    "descrizione": "Preparazione del cantiere",
+    "categoria": "F",
+    "sezione": "F - COSTRUZIONI"
+  },
+  {
+    "codice": "43.99.00",
+    "descrizione": "Attività di costruzione specializzate nca",
+    "categoria": "F",
+    "sezione": "F - COSTRUZIONI"
+  },
+  {
+    "codice": "45.11.00",
+    "descrizione": "Commercio di automobili e veicoli leggeri",
+    "categoria": "G",
+    "sezione": "G - COMMERCIO"
+  },
+  {
+    "codice": "45.20.00",
+    "descrizione": "Manutenzione e riparazione di autoveicoli",
+    "categoria": "G",
+    "sezione": "G - COMMERCIO"
+  },
+  {
+    "codice": "49.41.00",
+    "descrizione": "Trasporto di merci su strada",
+    "categoria": "H",
+    "sezione": "H - TRASPORTO E MAGAZZINAGGIO"
+  },
+  {
+    "codice": "52.21.00",
+    "descrizione": "Attività dei servizi di supporto al trasporto terrestre",
+    "categoria": "H",
+    "sezione": "H - TRASPORTO E MAGAZZINAGGIO"
+  }
+]

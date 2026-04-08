@@ -1,0 +1,111 @@
+Modulo MARS per valutazione e generazione DVR Rumore
+Stato di avanzamento e sintesi operativa
+Hai chiesto una “base documentale completa” per progettare il modulo Rumore del software consulenti MARS, con integrazione al DVR generale, collegamento a banche dati pubbliche, massima personalizzazione e possibilità di configurazione tramite prompt AI. A questo punto ho già consolidato: quadro normativo minimo applicabile (soglie/obblighi), principali banche dati istituzionali pertinenti (con vincoli d’uso), e un set di file “starter” (AGENTS.md, PRD, contesto, schema JSON di configurazione, configurazioni OpenCode+Ollama+Gemma 4 e agenti senior) pronti da importare nel tuo repo. 
+Punto critico emerso: la Banca Dati Rumore del Portale Agenti Fisici (PAF) è tecnicamente molto utile (valori Leq/LwA e protocolli), ma i Termini di utilizzo pubblicati dal Portale vietano l’uso (anche parziale) “per scopi commerciali”, consentendo l’uso esclusivamente per prevenzione e tutela. Questo impatta direttamente un’integrazione “nativa” in un prodotto come MARS (commerciale) e va gestito con una strategia di licensing/partnership o con alternative (import manuale, dati del costruttore, misure). 
+Quadro normativo essenziale per DVR Rumore
+Soglie legali per classificazione e obblighi
+Nel D.Lgs. 81/2008 (Titolo VIII, Capo II) sono fissati valori limite e valori di azione per:
+    • LEX,8h (dB(A), riferito a 20 μPa) e
+    • ppeak (Pa e corrispondente dB(C)). 
+In particolare, i valori sono:
+    • Valore limite: LEX = 87 dB(A) e ppeak = 200 Pa (140 dB(C)). 
+    • Valori superiori di azione: LEX = 85 dB(A) e ppeak = 140 Pa (137 dB(C)). 
+    • Valori inferiori di azione: LEX = 80 dB(A) e ppeak = 112 Pa (135 dB(C)). 
+Contenuti minimi della valutazione (cosa “deve” considerare il modulo)
+La valutazione dell’esposizione al rumore deve considerare, tra gli altri elementi: livello/tipo/durata di esposizione (incluso impulsivo), effetti su lavoratori sensibili, interazioni rumore–ototossici e rumore–vibrazioni, interferenze con segnali di avvertimento, informazioni di emissione fornite dai costruttori, alternative meno rumorose, prolungamenti oltre l’orario normale, informazioni da sorveglianza sanitaria e disponibilità di DPI uditivi adeguati. 
+Se “può fondatamente ritenersi” che i valori inferiori di azione possano essere superati, il datore di lavoro misura i livelli di rumore e riporta i risultati nel DVR; metodi/strumentazioni devono essere adeguati e occorre considerare l’incertezza delle misure. 
+Misure tecniche/organizzative, DPI, formazione e sorveglianza sanitaria
+Il decreto definisce un set di misure gerarchiche: metodi di lavoro alternativi, scelta attrezzature meno rumorose, progettazione luoghi/posti di lavoro, misure tecniche (schermature/involucri fonoassorbenti, smorzamento/isolamento), manutenzione, organizzazione tempi e riposi; e, se superati i valori inferiori di azione, un programma di misure tecniche e organizzative. 
+Per i DPI uditivi: sopra i valori inferiori d’azione vanno messi a disposizione, sopra o pari ai valori superiori d’azione l’uso è richiesto; la scelta deve mirare a eliminare o ridurre al minimo il rischio per l’udito (con consultazione lavoratori). 
+Formazione/informazione: lavoratori esposti a livelli ≥ valori inferiori d’azione devono essere informati e formati sul rischio rumore. 
+Sorveglianza sanitaria: obbligatoria per esposizioni che eccedono i valori superiori d’azione (con periodicità di norma annuale, modulabile dal medico competente). 
+Collegamento con dati “di emissione” delle macchine
+Sul fronte “dati del costruttore”, la normativa macchine recepita in Italia (D.Lgs. 17/2010, Allegato I) richiede che le istruzioni forniscano informazioni sull’emissione di rumore aereo (LpA ai posti di lavoro sopra certe soglie, picco C, e LwA sopra determinate condizioni), indicando anche condizioni di funzionamento e incertezze quando vengono dichiarati valori emissivi. 
+Questo è un punto “ponte” molto utile per il tuo modulo: il D.Lgs. 81/2008 chiede esplicitamente di considerare le informazioni di emissione fornite dai costruttori; quindi il software può supportare import/estrazione di tali valori (manuali, dichiarazioni, schede tecniche) come input alla stima preliminare o al confronto tra attrezzature, sempre marcando chiaramente la fonte (costruttore vs misura). 
+Banche dati pubbliche pertinenti e modalità di collegamento
+Portale Agenti Fisici (PAF): banca dati rumore e protocolli
+Il PAF dichiara due filoni:
+    • un rimando a banca dati CPT Torino/FSC Torino per cantieri edili;
+    • la Banca Dati Rumore del Portale Agenti Fisici, con Leq (dBA) e LwA (dBA) dichiarati dai costruttori e anche dati misurati in campo secondo protocolli scaricabili. 
+Il PAF esplicita anche “come” usa i dati nel contesto DVR: li indica come utilizzabili, tra l’altro, per tener conto delle alternative meno rumorose e delle informazioni del costruttore (coerenti col D.Lgs. 81/2008), e come supporto a stime preliminari; inoltre richiama che per la valutazione dell’esposizione (art. 190) l’uso non sostituisce la misura strumentale quando necessaria. 
+Vincolo dirimente (riuso): nei “Termini di Utilizzo” del PAF è riportato che i dati e documenti possono essere usati esclusivamente per prevenzione e tutela dal rischio da agenti fisici, ed è vietato l’uso anche parziale per scopi commerciali; è consentita riproduzione in lavori/report citando la fonte. 
+Implicazione per MARS: un collegamento “integrato” (import automatico e riuso) dentro un software venduto come servizio/prodotto potrebbe essere contestabile come “uso commerciale”. Non posso verificarne l’interpretazione giuridica vincolante senza un parere/accordo formale; quello che posso verificare con certezza è che il Portale pubblica un divieto esplicito. 
+Sul piano tecnico, il PAF pubblica protocolli per la fornitura/acquisizione misure rumore (modello di resoconto di prova, campi obbligatori, indicazione di autorizzazione alla pubblicazione dei dati proposti, ecc.). 
+CPT Torino / FSC Torino
+Il PAF indica una banca dati rumore per cantieri edili “migrata” sul Portale FSC Torino e riferisce che è stata validata dalla Commissione consultiva permanente ex art. 6 D.Lgs. 81/2008 secondo quanto riportato dal Portale stesso. 
+Non posso verificare, in questa sessione, i dettagli operativi delle pagine FSC (alcuni endpoint hanno restituito errori di raggiungibilità dal crawler). La parte verificabile è l’esistenza del collegamento e la descrizione riportata dal PAF. 
+ATECO e basi classificatorie
+Per la componente ATECO (che ti serve per suggerire processi tipici, macchinari tipici e “profilo rumore standard”), risultano disponibili:
+    • strumenti ISTAT per consultazione/ricerca e download della classificazione ATECO 2007; 
+    • distribuzioni open (es. schema.gov.it) in CSV per ATECO 2007; 
+    • Inail Open Data con dataset collegati alla struttura della classificazione ATECO 2007 (utile come dizionario/gerarchia). 
+Queste fonti sono idonee come base “codici e descrizioni”; non garantiscono automaticamente la disponibilità di una “process library” o di una lista standard di macchinari per ogni ATECO. Se vuoi quella funzione, la parte “processi/macchinari tipici per ATECO” va costruita come libreria interna MARS (curata e versionata), oppure derivata con AI come bozza sempre editable e marcata come proposta (non come fatto). (Questa è una proposta architetturale, non un dato verificato.)
+Strategia di collegamento e aggiornamento
+Per mantenere le banche dati “sempre aggiornate” senza perdere tracciabilità, la prassi robusta (proposta) è:
+    • ingest periodico con snapshot e versionamento dataset (data estrazione, id fonte, hash);
+    • “data lineage” per ogni valutazione: la valutazione deve salvare quale versione del dataset è stata usata;
+    • fallback controllati: se una fonte esterna cambia schema o diventa indisponibile, il modulo deve degradare su input manuale / dati costruttore / misure.
+Nota: con il PAF il tema primario non è tecnico ma licensing (vedi sopra). 
+Requisiti di prodotto e PRD del modulo Rumore
+Funzioni core richieste (conformi al contesto normativo)
+Il modulo deve supportare, come minimo:
+    • calcolo e classificazione rispetto a LEX,8h / LEX,w e ppeak e rispetto alle soglie di azione/limite; 
+    • gestione esplicita di incertezza per misure e tracciabilità dei metodi/strumenti impiegati; 
+    • generazione automatica delle misure di prevenzione/protezione e del programma di miglioramento coerente con i risultati; 
+    • gestione DPI uditivi (messa a disposizione/obbligo), segnaletica aree, formazione e sorveglianza sanitaria in base alle fasce; 
+    • integrazione al DVR generale: import di mansioni/fasi, macchinari, turni/tempi; e restituzione dei risultati al DVR complessivo (sezioni/tabelle/misure).
+Modalità di input dati da implementare
+Per coprire casi reali (e anche per ridurre dipendenza da banche dati con vincoli), il PRD che ho preparato prevede tre canali principali:
+    • Misure strumentali (fonometriche/dosimetriche) con upload report o input strutturato.
+    • Dati del costruttore: estrazione/compilazione dei valori emissivi da manuali/istruzioni e dichiarazioni (LpA, LCpeak, LwA), coerente col fatto che tali informazioni sono previste nelle istruzioni delle macchine in varie condizioni. 
+    • Dati da banca dati: selezione macchina e valori Leq/LwA da banca dati esterna solo se i vincoli d’uso lo consentono (PAF oggi pubblica un divieto commerciale, quindi per integrazione diretta serve autorizzazione). 
+Personalizzazione e configurazione via AI
+Il requisito “settare tutto mediante prompt dell’assistente AI” è tradotto (nel pacchetto allegato) in:
+    • uno schema JSON di configurazione del modulo (NoiseModuleConfig);
+    • prompt template “prompt → JSON”;
+    • validazione server-side: l’AI non può applicare configurazioni non valide.
+Questo approccio riduce errori e rende auditabile cosa è stato “impostato via AI” vs “impostato manualmente”. (Proposta di design; non è un vincolo normativo.)
+Architettura tecnica proposta e integrazione al DVR generale
+Flusso dati consigliato
+text
+Copia
+DVR Generale (processi/fasi, mansioni, macchinari, turni)
+          │
+          ▼
+Modulo Rumore
+  - riconoscimento sorgenti (dizionario + NLP su fasi)
+  - gestione sorgenti & scenari (tempi/condizioni)
+  - motore calcolo (LEX,8h/LEX,w/ppeak + incertezza)
+  - classificazione soglie + obblighi
+          │
+          ├──► DVR Rumore (testo + tabelle + allegati + fonti/versioni)
+          │
+          └──► Sync back al DVR Generale (misure, DPI, formazione, sorveglianza)
+La parte “riconoscimento automatico fasi/macchinari come sorgenti rumore” è una funzione di prodotto: è coerente con l’obbligo di considerare informazioni su emissioni del costruttore e alternative meno rumorose, ma resta una componente “di supporto” che deve sempre prevedere conferma umana. 
+Data model minimo suggerito
+Per rendere il modulo importabile e riusabile nel DVR generale, le entità minime utili (proposta) sono:
+    • Company/Site (con eventuale ATECO e metadati);
+    • Mansione o Gruppo omogeneo;
+    • Fase/Processo (importato dal DVR generale);
+    • Attrezzatura/Macchina (marca/modello/tipologia);
+    • Sorgente rumore (valori + condizioni + fonte + incertezza);
+    • Scenario di esposizione (tempi/turni/rotazioni/ambienti);
+    • Risultati calcolo (LEX,8h/LEX,w/ppeak + classificazione);
+    • Misure e azioni (tecniche/organizzative/DPI/segnaletica/formazione/sorveglianza);
+    • Data lineage (versione dataset, timestamp, utente/revisione).
+Governance delle fonti e compliance dati
+Qui la progettazione deve esplicitamente distinguere:
+    • dati misurati (con incertezza e tracciabilità strumenti/metodo); 
+    • dati del costruttore (estratti da manuale/dichiarazione) coerenti con obblighi informativi sulle emissioni; 
+    • dati banca dati: con licenza/ToS verificati e conservati a corredo; nel caso PAF, i ToS pubblicati vietano uso commerciale. 
+Ecosistema agenti e strumenti CLI per sviluppo e deployment AI
+AGENTS.md e regole di progetto
+Per l’orchestrazione con strumenti tipo Codex e OpenCode, la prassi consolidata è l’uso del file AGENTS.md come “contesto/istruzioni di progetto”: Codex lo legge prima di lavorare e consente di stratificare regole globali e specifiche per repository. 
+OpenCode: agenti e format in Markdown
+OpenCode consente di configurare agenti sia via JSON sia via file Markdown in .opencode/agents/ (per-project) o in ~/.config/opencode/agents/ (global). È previsto un front matter YAML per descrizione, mode, model, temperature e tool access, seguito dal prompt. 
+Per creare agenti custom, la CLI supporta opencode agent create (wizard). 
+Attenzione operativa: esiste una issue pubblica che segnala una possibile discrepanza tra cartella creata dal comando e cartella letta dal runtime (singolare/plurale). 
+Ollama + Gemma 4 (31B cloud) con OpenCode
+Gemma 4 su Ollama è disponibile in più tag; per la variante “cloud” risulta pubblicato il tag MiniMax2.7:cloud. 
+Ollama fornisce CLI ollama run ... e relativa documentazione. 
+Per collegare OpenCode a Ollama (endpoint OpenAI-compatibile), la documentazione riporta una configurazione provider con baseURL locale e, per la modalità cloud, l’uso di https://ollama.com/v1 con API key OLLAMA_API_KEY. 

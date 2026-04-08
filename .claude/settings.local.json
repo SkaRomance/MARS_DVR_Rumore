@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash verify-plugin.sh)",
+      "Bash(python3:*)",
+      "Bash(python:*)",
+      "Bash(node:*)",
+      "Bash(for d:*)",
+      "Bash(do echo:*)",
+      "Read(//c/Users/Salvatore Romano/Desktop/MARS_DVR_Rumore/$d/**)",
+      "Bash(done)"
+    ]
+  }
+}
