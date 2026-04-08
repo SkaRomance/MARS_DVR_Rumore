@@ -411,10 +411,41 @@ async def get_suggestions(
     status_filter: SuggestionStatus | None = None,
 ):
     """Get AI suggestions for an assessment."""
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Suggestions list endpoint not yet implemented - requires DB session setup",
-    )
+    from sqlalchemy import select
+    from src.infrastructure.database.models.ai_suggestion import AISuggestion
+    from src.bootstrap.main import get_db
+
+    try:
+        session = get_db()
+        async with session:
+            query = select(AISuggestion).where(
+                AISuggestion.assessment_id == assessment_id
+            )
+            if status_filter:
+                query = query.where(AISuggestion.status == status_filter.value)
+
+            result = await session.execute(query)
+            suggestions = result.scalars().all()
+
+            return [
+                SuggestionResponse(
+                    id=s.id,
+                    suggestion_type=s.suggestion_type,
+                    title=s.title,
+                    content=s.content,
+                    status=s.status,
+                    confidence_score=s.confidence_score,
+                    created_at=s.created_at,
+                )
+                for s in suggestions
+            ]
+
+    except Exception as e:
+        logger.error("Get suggestions failed: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get suggestions: {str(e)}",
+        )
 
 
 @router.post("/assessments/{assessment_id}/ai/suggestions/{suggestion_id}/action")
@@ -424,10 +455,48 @@ async def suggestion_action(
     request: SuggestionActionRequest,
 ):
     """Approve or reject an AI suggestion."""
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Suggestion action endpoint not yet implemented - requires DB session setup",
+    from datetime import datetime
+    from sqlalchemy import select, update
+    from src.infrastructure.database.models.ai_suggestion import (
+        AISuggestion,
+        AISuggestionStatus,
     )
+    from src.bootstrap.main import get_db
+
+    try:
+        session = get_db()
+        async with session:
+            result = await session.execute(
+                select(AISuggestion).where(AISuggestion.id == suggestion_id)
+            )
+            suggestion = result.scalar_one_or_none()
+
+            if not suggestion:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Suggestion {suggestion_id} not found",
+                )
+
+            if request.action == "approve":
+                suggestion.status = AISuggestionStatus.APPROVED
+                suggestion.approved_by = request.approved_by
+                suggestion.approved_at = datetime.utcnow()
+            elif request.action == "reject":
+                suggestion.status = AISuggestionStatus.REJECTED
+                suggestion.rejection_reason = request.reason
+
+            await session.commit()
+
+            return {"status": "ok", "id": suggestion_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Suggestion action failed: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process suggestion action: {str(e)}",
+        )
 
 
 @router.get(
@@ -438,7 +507,37 @@ async def get_interactions(
     assessment_id: UUID,
 ):
     """Get AI interaction history for an assessment."""
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Interactions list endpoint not yet implemented - requires DB session setup",
-    )
+    from sqlalchemy import select
+    from src.infrastructure.database.models.ai_interaction import AIInteraction
+    from src.bootstrap.main import get_db
+
+    try:
+        session = get_db()
+        async with session:
+            result = await session.execute(
+                select(AIInteraction)
+                .where(AIInteraction.assessment_id == assessment_id)
+                .order_by(AIInteraction.created_at.desc())
+                .limit(100)
+            )
+            interactions = result.scalars().all()
+
+            return [
+                InteractionResponse(
+                    id=i.id,
+                    interaction_type=i.interaction_type,
+                    prompt=i.prompt[:500] if i.prompt else "",
+                    response=i.response[:500] if i.response else None,
+                    model_name=i.model_name,
+                    tokens_used=i.tokens_used,
+                    created_at=i.created_at,
+                )
+                for i in interactions
+            ]
+
+    except Exception as e:
+        logger.error("Get interactions failed: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get interactions: {str(e)}",
+        )
