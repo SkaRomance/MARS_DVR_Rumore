@@ -75,7 +75,7 @@ class MitigationAgent:
         self,
         lex_levels: dict[str, float],
         risk_bands: dict[str, str],
-        affected_roles: list[str],
+        affected_roles: list[str] | None = None,
         assessment_id: UUID | None = None,
         include_ppe: bool = True,
         include_engineering: bool = True,

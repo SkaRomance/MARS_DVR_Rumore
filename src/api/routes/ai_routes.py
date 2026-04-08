@@ -360,16 +360,46 @@ async def ai_suggest_mitigations(
 async def ai_detect_sources(
     assessment_id: UUID,
     request: SourceDetectionRequest,
+    settings: Settings = Depends(get_settings),
 ):
     """Detect noise sources from free-text description.
 
     Matches descriptions to PAF noise source catalog
     and suggests typical noise levels.
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Source detection endpoint not yet implemented",
+    from src.domain.services.agents.source_detection_agent import (
+        SourceDetectionAgent,
     )
+    from src.domain.services.ai_orchestrator import AIOrchestrator
+    from src.infrastructure.llm import OllamaProvider
+
+    try:
+        provider = OllamaProvider(
+            base_url=settings.ollama_base_url,
+            api_key=settings.ollama_api_key,
+            model=settings.ollama_model,
+        )
+        orchestrator = AIOrchestrator(provider)
+        agent = SourceDetectionAgent(orchestrator)
+
+        result = await agent.detect(
+            description=request.description,
+            assessment_id=assessment_id,
+            context=request.context or {},
+        )
+
+        return SourceDetectionResponse(
+            detected_sources=[s.__dict__ for s in result.detected_sources],
+            confidence_overall=result.confidence_overall,
+            processing_notes=result.processing_notes,
+        )
+
+    except Exception as e:
+        logger.error("Source detection failed: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Source detection failed: {str(e)}",
+        )
 
 
 @router.get(
@@ -383,7 +413,7 @@ async def get_suggestions(
     """Get AI suggestions for an assessment."""
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Suggestions list endpoint not yet implemented",
+        detail="Suggestions list endpoint not yet implemented - requires DB session setup",
     )
 
 
@@ -396,7 +426,7 @@ async def suggestion_action(
     """Approve or reject an AI suggestion."""
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Suggestion action endpoint not yet implemented",
+        detail="Suggestion action endpoint not yet implemented - requires DB session setup",
     )
 
 
@@ -410,5 +440,5 @@ async def get_interactions(
     """Get AI interaction history for an assessment."""
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Interactions list endpoint not yet implemented",
+        detail="Interactions list endpoint not yet implemented - requires DB session setup",
     )
