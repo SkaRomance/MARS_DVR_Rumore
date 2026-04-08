@@ -57,6 +57,18 @@ class ReviewRequest(BaseModel):
     """Request for AI review."""
 
     assessment_id: UUID = Field(..., description="Assessment ID to review")
+    assessment_data: dict[str, Any] = Field(
+        ...,
+        description="Complete assessment JSON data to review",
+    )
+    company_name: str | None = Field(
+        default=None,
+        description="Name of the company",
+    )
+    ateco_code: str | None = Field(
+        default=None,
+        description="Primary ATECO code",
+    )
     focus_areas: list[str] | None = Field(
         default=None,
         description="Specific areas to focus on",
@@ -78,12 +90,32 @@ class ExplainRequest(BaseModel):
         default="technical",
         description="Explanation level: beginner, technical, expert",
     )
+    context_data: dict[str, Any] | None = Field(
+        default=None,
+        description="Contextual data for the explanation",
+    )
 
 
 class NarrativeRequest(BaseModel):
     """Request for narrative generation."""
 
     assessment_id: UUID = Field(..., description="Assessment ID")
+    company_name: str = Field(..., description="Company name")
+    ateco_code: str = Field(..., description="ATECO code")
+    assessment_date: str = Field(..., description="Assessment date")
+    responsible_name: str = Field(..., description="Responsible person name")
+    results: dict[str, Any] = Field(
+        default_factory=dict, description="Calculation results"
+    )
+    roles: list[dict[str, Any]] = Field(
+        default_factory=list, description="Job roles data"
+    )
+    noise_sources: list[dict[str, Any]] = Field(
+        default_factory=list, description="Noise sources"
+    )
+    mitigations: list[str] = Field(
+        default_factory=list, description="Proposed mitigations"
+    )
     section: str | None = Field(
         default=None,
         description="Specific section to generate (or all if not specified)",
@@ -93,11 +125,15 @@ class NarrativeRequest(BaseModel):
 class MitigationRequest(BaseModel):
     """Request for mitigation suggestions."""
 
-    risk_bands: list[str] = Field(
-        ...,
-        description="Risk bands to generate mitigations for",
+    lex_levels: dict[str, float] = Field(
+        default_factory=dict,
+        description="Map of role -> LEX,8h level",
     )
-    affected_roles: list[UUID] | None = Field(
+    risk_bands: dict[str, str] = Field(
+        default_factory=dict,
+        description="Map of role -> risk band",
+    )
+    affected_roles: list[str] | None = Field(
         default=None,
         description="Specific roles to focus on",
     )

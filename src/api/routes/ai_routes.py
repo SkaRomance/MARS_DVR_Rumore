@@ -134,6 +134,7 @@ async def ai_bootstrap(
 async def ai_review(
     assessment_id: UUID,
     request: ReviewRequest,
+    settings: Settings = Depends(get_settings),
 ):
     """Review existing assessment data.
 
@@ -143,16 +144,54 @@ async def ai_review(
     - Correctness
     - Coverage
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Review endpoint not yet implemented",
+    from src.domain.services.agents.review_agent import (
+        ReviewAgent,
     )
+    from src.domain.services.ai_orchestrator import AIOrchestrator
+    from src.infrastructure.llm import OllamaProvider
+
+    try:
+        provider = OllamaProvider(
+            base_url=settings.ollama_base_url,
+            api_key=settings.ollama_api_key,
+            model=settings.ollama_model,
+        )
+        orchestrator = AIOrchestrator(provider)
+        agent = ReviewAgent(orchestrator)
+
+        assessment_data = request.assessment_data
+        company_name = request.company_name or "Azienda sconosciuta"
+        ateco_code = request.ateco_code or "Sconosciuto"
+
+        result = await agent.review(
+            assessment_data=assessment_data,
+            company_name=company_name,
+            ateco_code=ateco_code,
+            assessment_id=assessment_id,
+            focus_areas=request.focus_areas,
+        )
+
+        return ReviewResponse(
+            issues=[i.__dict__ for i in result.issues],
+            warnings=[w.__dict__ for w in result.warnings],
+            missing_data=result.missing_data,
+            validation_passed=result.validation_passed,
+            overall_score=result.overall_score,
+        )
+
+    except Exception as e:
+        logger.error("Review failed: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"AI review failed: {str(e)}",
+        )
 
 
 @router.post("/assessments/{assessment_id}/ai/explain", response_model=ExplainResponse)
 async def ai_explain(
     assessment_id: UUID,
     request: ExplainRequest,
+    settings: Settings = Depends(get_settings),
 ):
     """Explain calculations, risk decisions, or regulations.
 
@@ -161,10 +200,44 @@ async def ai_explain(
     - technical: With proper terminology
     - expert: With derivations and references
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Explain endpoint not yet implemented",
+    from src.domain.services.agents.explain_agent import (
+        ExplainAgent,
     )
+    from src.domain.services.ai_orchestrator import AIOrchestrator
+    from src.infrastructure.llm import OllamaProvider
+
+    try:
+        provider = OllamaProvider(
+            base_url=settings.ollama_base_url,
+            api_key=settings.ollama_api_key,
+            model=settings.ollama_model,
+        )
+        orchestrator = AIOrchestrator(provider)
+        agent = ExplainAgent(orchestrator)
+
+        result = await agent.explain(
+            subject=request.subject,
+            level=request.level,
+            context_data=request.context_data or {},
+            assessment_id=assessment_id,
+            target_id=request.target_id,
+        )
+
+        return ExplainResponse(
+            explanation=result.explanation,
+            technical_details=result.technical_details.__dict__
+            if result.technical_details
+            else None,
+            related_regulations=result.related_regulations,
+            confidence=result.confidence,
+        )
+
+    except Exception as e:
+        logger.error("Explain failed: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"AI explain failed: {str(e)}",
+        )
 
 
 @router.post(
@@ -173,16 +246,52 @@ async def ai_explain(
 async def ai_generate_narrative(
     assessment_id: UUID,
     request: NarrativeRequest,
+    settings: Settings = Depends(get_settings),
 ):
     """Generate DVR narrative text.
 
     Creates structured narrative sections for the noise
     risk assessment document following Italian DVR format.
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Narrative endpoint not yet implemented",
-    )
+    from src.domain.services.agents.narrative_agent import NarrativeAgent
+    from src.domain.services.ai_orchestrator import AIOrchestrator
+    from src.infrastructure.llm import OllamaProvider
+
+    try:
+        provider = OllamaProvider(
+            base_url=settings.ollama_base_url,
+            api_key=settings.ollama_api_key,
+            model=settings.ollama_model,
+        )
+        orchestrator = AIOrchestrator(provider)
+        agent = NarrativeAgent(orchestrator)
+
+        result = await agent.generate(
+            company_name=request.company_name,
+            ateco_code=request.ateco_code,
+            assessment_date=request.assessment_date,
+            responsible_name=request.responsible_name,
+            results=request.results,
+            roles=request.roles,
+            noise_sources=request.noise_sources,
+            mitigations=request.mitigations,
+            assessment_id=assessment_id,
+            section=request.section,
+        )
+
+        return NarrativeResponse(
+            content=result.full_text,
+            section=request.section or "full",
+            word_count=result.word_count,
+            confidence=result.confidence,
+        )
+
+    except Exception as e:
+        logger.error("Narrative generation failed: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"AI narrative generation failed: {str(e)}",
+        )
 
 
 @router.post(
@@ -192,6 +301,7 @@ async def ai_generate_narrative(
 async def ai_suggest_mitigations(
     assessment_id: UUID,
     request: MitigationRequest,
+    settings: Settings = Depends(get_settings),
 ):
     """Suggest risk mitigation measures.
 
@@ -202,10 +312,45 @@ async def ai_suggest_mitigations(
 
     Follows Italian D.Lgs. 81/2008 hierarchy.
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Mitigations endpoint not yet implemented",
-    )
+    from src.domain.services.agents.mitigation_agent import MitigationAgent
+    from src.domain.services.ai_orchestrator import AIOrchestrator
+    from src.infrastructure.llm import OllamaProvider
+
+    try:
+        provider = OllamaProvider(
+            base_url=settings.ollama_base_url,
+            api_key=settings.ollama_api_key,
+            model=settings.ollama_model,
+        )
+        orchestrator = AIOrchestrator(provider)
+        agent = MitigationAgent(orchestrator)
+
+        result = await agent.suggest(
+            lex_levels=request.lex_levels,
+            risk_bands=request.risk_bands,
+            affected_roles=request.affected_roles,
+            assessment_id=assessment_id,
+            include_ppe=request.include_ppe,
+            include_engineering=request.include_engineering,
+            include_administrative=request.include_administrative,
+        )
+
+        return MitigationResponse(
+            engineer_controls=[c.__dict__ for c in result.engineer_controls],
+            administrative_controls=[
+                c.__dict__ for c in result.administrative_controls
+            ],
+            ppe_recommendations=[p.__dict__ for p in result.ppe_recommendations],
+            priority_order=result.priority_order,
+            overall_risk_reduction=result.overall_risk_reduction,
+        )
+
+    except Exception as e:
+        logger.error("Mitigation suggestion failed: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"AI mitigation suggestion failed: {str(e)}",
+        )
 
 
 @router.post(
