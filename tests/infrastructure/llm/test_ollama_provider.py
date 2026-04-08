@@ -14,7 +14,7 @@ class TestOllamaProvider:
     def mock_settings(self):
         """Mock settings for testing."""
         settings = MagicMock()
-        settings.ollama_base_url = "https://api.ollama.com/v1"
+        settings.ollama_base_url = "https://ollama.com"
         settings.ollama_api_key = "test-key"
         settings.ollama_model = "glm-5.1"
         return settings
@@ -30,17 +30,16 @@ class TestOllamaProvider:
 
     @pytest.mark.asyncio
     async def test_generate_success(self, provider):
-        """Test successful generation."""
+        """Test successful generation with /api/generate format."""
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            "choices": [
-                {
-                    "message": {"content": "Test response"},
-                    "finish_reason": "stop",
-                }
-            ],
-            "usage": {"total_tokens": 50},
+            "model": "glm-5.1",
+            "response": "Test response",
+            "done": True,
+            "done_reason": "stop",
+            "eval_count": 10,
+            "prompt_eval_count": 5,
         }
 
         with patch.object(provider._client, "post", return_value=mock_response):
@@ -49,21 +48,19 @@ class TestOllamaProvider:
 
             assert response.content == "Test response"
             assert response.model == "glm-5.1"
-            assert response.tokens_used == 50
+            assert response.tokens_used == 15  # eval_count + prompt_eval_count
 
     @pytest.mark.asyncio
     async def test_generate_with_system_prompt(self, provider):
-        """Test generation with system prompt."""
+        """Test generation with system prompt combined into prompt."""
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            "choices": [
-                {
-                    "message": {"content": "Response"},
-                    "finish_reason": "stop",
-                }
-            ],
-            "usage": {"total_tokens": 30},
+            "model": "glm-5.1",
+            "response": "Response",
+            "done": True,
+            "done_reason": "stop",
+            "eval_count": 5,
         }
 
         with patch.object(
@@ -77,13 +74,14 @@ class TestOllamaProvider:
 
             call_args = mock_post.call_args
             payload = call_args.kwargs["json"]
-            assert len(payload["messages"]) == 2
-            assert payload["messages"][0]["role"] == "system"
-            assert payload["messages"][1]["role"] == "user"
+            # System prompt should be prepended to user prompt
+            assert "System prompt" in payload["prompt"]
+            assert "User prompt" in payload["prompt"]
+            assert payload["model"] == "glm-5.1"
 
     @pytest.mark.asyncio
     async def test_is_available_success(self, provider):
-        """Test availability check success."""
+        """Test availability check success via /api/tags."""
         mock_response = MagicMock()
         mock_response.status_code = 200
 

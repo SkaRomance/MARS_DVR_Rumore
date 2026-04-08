@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
 
-    ollama_base_url: str = "https://api.ollama.com/v1"
+    ollama_base_url: str = "https://ollama.com"
     ollama_api_key: str | None = None
     ollama_model: str = "glm-5.1"
 

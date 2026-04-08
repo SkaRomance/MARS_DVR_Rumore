@@ -59,36 +59,33 @@ class OllamaProvider(LLMProvider):
         )
 
     async def generate(self, request: LLMRequest) -> LLMResponse:
-        """Generate completion using Ollama API."""
-        messages = []
+        """Generate completion using Ollama API.
+
+        Supports both local Ollama (http://localhost:11434) and
+        Ollama Cloud (https://ollama.com/api) endpoints.
+        """
+        # Build combined prompt for /api/generate endpoint
+        prompt_text = request.prompt
         if request.system_prompt:
-            messages.append(
-                {
-                    "role": "system",
-                    "content": request.system_prompt,
-                }
-            )
-        messages.append(
-            {
-                "role": "user",
-                "content": request.prompt,
-            }
-        )
+            prompt_text = f"{request.system_prompt}\n\n{request.prompt}"
 
         payload: dict[str, Any] = {
             "model": self.model,
-            "messages": messages,
-            "max_tokens": request.max_tokens,
-            "temperature": request.temperature,
+            "prompt": prompt_text,
             "stream": False,
+            "options": {
+                "num_predict": request.max_tokens,
+                "temperature": request.temperature,
+            },
         }
 
         if request.stop:
             payload["stop"] = request.stop
 
         try:
+            # Use /api/generate endpoint (works for both local and cloud)
             response = await self._client.post(
-                "/chat/completions",
+                "/api/generate",
                 json=payload,
             )
 
@@ -96,6 +93,12 @@ class OllamaProvider(LLMProvider):
                 raise LLMProviderError("Invalid API key for Ollama")
             elif response.status_code == 404:
                 raise LLMProviderError(f"Model '{self.model}' not found")
+            elif response.status_code == 301:
+                # Redirect - try with /api/generate directly
+                response = await self._client.post(
+                    "/api/generate",
+                    json=payload,
+                )
             elif response.status_code != 200:
                 raise LLMProviderError(
                     f"Ollama API error: {response.status_code} - {response.text}"
@@ -103,13 +106,16 @@ class OllamaProvider(LLMProvider):
 
             data = response.json()
 
-            choice = data["choices"][0]
-            content = choice["message"]["content"]
-            finish_reason = choice.get("finish_reason", "stop")
+            # Parse /api/generate response format
+            content = data.get("response", "")
+            finish_reason = data.get("done_reason", "stop")
 
+            # Extract tokens used
             tokens_used = 0
-            if "usage" in data:
-                tokens_used = data["usage"].get("total_tokens", 0)
+            if "eval_count" in data:
+                tokens_used = data["eval_count"]
+            if "prompt_eval_count" in data:
+                tokens_used += data["prompt_eval_count"]
 
             return LLMResponse(
                 content=content,
@@ -128,7 +134,8 @@ class OllamaProvider(LLMProvider):
     async def is_available(self) -> bool:
         """Check if Ollama service is available."""
         try:
-            response = await self._client.get("/models")
+            # Use /api/tags endpoint for availability check
+            response = await self._client.get("/api/tags")
             return response.status_code == 200
         except Exception as e:
             logger.warning("Ollama availability check failed: %s", e)
@@ -137,10 +144,10 @@ class OllamaProvider(LLMProvider):
     async def list_models(self) -> list[dict[str, Any]]:
         """List available models."""
         try:
-            response = await self._client.get("/models")
+            response = await self._client.get("/api/tags")
             if response.status_code == 200:
                 data = response.json()
-                return data.get("data", [])
+                return data.get("models", [])
             return []
         except Exception:
             return []
