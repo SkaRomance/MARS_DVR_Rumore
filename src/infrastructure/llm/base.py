@@ -11,7 +11,7 @@ class LLMRequest:
 
     prompt: str
     system_prompt: str | None = None
-    max_tokens: int = 2000
+    max_tokens: int = 500
     temperature: float = 0.7
     stop: list[str] | None = None
 
