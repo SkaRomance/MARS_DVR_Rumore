@@ -85,8 +85,8 @@ class AIOrchestrator:
             request = LLMRequest(
                 prompt=user_prompt,
                 system_prompt=system_prompt,
-                max_tokens=4000,
-                temperature=0.7,
+                max_tokens=750,
+                temperature=0.3,
             )
 
             # Call LLM with retries
