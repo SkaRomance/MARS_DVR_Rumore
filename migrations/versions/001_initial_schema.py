@@ -153,7 +153,12 @@ def upgrade():
     # ATECO Catalog table
     op.create_table(
         "ateco_catalog",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True),
+        sa.Column(
+            "id",
+            UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column("code", sa.String(10), nullable=False, unique=True),
         sa.Column("description", sa.String(500), nullable=False),
         sa.Column("category", sa.String(5), nullable=True),
