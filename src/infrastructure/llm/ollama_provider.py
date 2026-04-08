@@ -83,21 +83,26 @@ class OllamaProvider(LLMProvider):
             payload["stop"] = request.stop
 
         try:
-            # Use /api/generate endpoint (works for both local and cloud)
-            response = await self._client.post(
-                "/api/generate",
-                json=payload,
-            )
+            # Use direct httpx post instead of AsyncClient to avoid redirect issues
+            # with base_url for Ollama Cloud
+            headers: dict[str, str] = {}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
+
+            async with httpx.AsyncClient(timeout=httpx.Timeout(self.timeout)) as client:
+                response = await client.post(
+                    f"{self.base_url}/api/generate",
+                    json=payload,
+                    headers=headers,
+                )
 
             if response.status_code == 401:
                 raise LLMProviderError("Invalid API key for Ollama")
             elif response.status_code == 404:
                 raise LLMProviderError(f"Model '{self.model}' not found")
             elif response.status_code == 301:
-                # Redirect - try with /api/generate directly
-                response = await self._client.post(
-                    "/api/generate",
-                    json=payload,
+                raise LLMProviderError(
+                    "Ollama Cloud requires direct endpoint, redirect not allowed"
                 )
             elif response.status_code != 200:
                 raise LLMProviderError(
@@ -107,7 +112,29 @@ class OllamaProvider(LLMProvider):
             data = response.json()
 
             # Parse /api/generate response format
+            # GLM models use "thinking" field for reasoning, "response" for final answer
             content = data.get("response", "")
+            if not content and "thinking" in data:
+                # Model used thinking - extract final answer from end of thinking
+                thinking = data.get("thinking", "")
+                if isinstance(thinking, str) and len(thinking) > 10:
+                    # GLM thinking ends with final check/conclusion
+                    # The last line before truncation often contains the answer
+                    lines = thinking.strip().split("\n")
+                    if lines:
+                        # Look for conclusion lines (no leading number/bullet)
+                        for line in reversed(lines):
+                            stripped = line.strip()
+                            if (
+                                stripped
+                                and not stripped.startswith("*")
+                                and not stripped.startswith("**")
+                            ):
+                                content = stripped
+                                break
+            if not content:
+                content = "[No response generated]"
+
             finish_reason = data.get("done_reason", "stop")
 
             # Extract tokens used
