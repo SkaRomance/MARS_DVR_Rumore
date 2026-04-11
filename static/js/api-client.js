@@ -51,18 +51,18 @@
         }
 
         async getAssessmentSections(id) {
-            return this.request(`/assessments/${id}/document/sections`);
+            return this.request(`/export/assessments/${id}/document/sections`);
         }
 
         async updateSection(id, sectionId, content) {
-            return this.request(`/assessments/${id}/document/sections/${sectionId}`, {
+            return this.request(`/export/assessments/${id}/document/sections/${sectionId}`, {
                 method: 'PUT',
                 body: JSON.stringify({ content })
             });
         }
 
         async exportJSON(id) {
-            const response = await fetch(`${this.baseURL}/assessments/${id}/export/json`, {
+            const response = await fetch(`${this.baseURL}/export/assessments/${id}/json`, {
                 method: 'POST',
                 headers: this.defaultHeaders
             });
@@ -75,7 +75,7 @@
         }
 
         async exportDOCX(id, options = {}) {
-            const response = await fetch(`${this.baseURL}/assessments/${id}/export/docx`, {
+            const response = await fetch(`${this.baseURL}/export/assessments/${id}/docx`, {
                 method: 'POST',
                 headers: this.defaultHeaders,
                 body: JSON.stringify(options)
@@ -89,30 +89,30 @@
         }
 
         async getExportPreview(id) {
-            return this.request(`/assessments/${id}/export/preview`);
+            return this.request(`/export/assessments/${id}/preview`);
         }
 
         async getTemplates() {
-            return this.request('/templates');
+            return this.request('/export/templates');
         }
 
         async getTemplate(id) {
-            return this.request(`/templates/${id}`);
+            return this.request(`/export/templates/${id}`);
         }
 
         async saveTemplateOverride(id, content) {
-            return this.request(`/templates/${id}`, {
+            return this.request(`/export/templates/${id}`, {
                 method: 'PUT',
                 body: JSON.stringify({ content })
             });
         }
 
         async getPrintSettings() {
-            return this.request('/print-settings');
+            return this.request('/export/print-settings');
         }
 
         async savePrintSettings(settings) {
-            return this.request('/print-settings', {
+            return this.request('/export/print-settings', {
                 method: 'PUT',
                 body: JSON.stringify(settings)
             });

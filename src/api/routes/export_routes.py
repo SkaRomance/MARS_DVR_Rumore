@@ -5,8 +5,10 @@ from datetime import datetime
 from uuid import UUID
 from typing import Any
 
+from io import BytesIO
+
 from fastapi import APIRouter, HTTPException, status
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 
 from src.api.schemas.export import (
     ExportRequest,
@@ -21,11 +23,11 @@ from src.domain.services.template_service import get_template_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="", tags=["Export"])
+router = APIRouter(prefix="/export", tags=["Export"])
 
 
 @router.post(
-    "/assessments/{assessment_id}/export/json",
+    "/assessments/{assessment_id}/json",
     response_model=ExportResponse,
 )
 async def export_assessment_json(
@@ -106,8 +108,7 @@ async def export_assessment_json(
 
 
 @router.post(
-    "/assessments/{assessment_id}/export/docx",
-    response_model=ExportResponse,
+    "/assessments/{assessment_id}/docx",
 )
 async def export_assessment_docx(
     assessment_id: UUID,
@@ -239,14 +240,11 @@ async def export_assessment_docx(
 
             filename = f"DVR_RUMORE_{assessment_id}_v{new_version}.docx"
 
-            return ExportResponse(
-                assessment_id=assessment_id,
-                format=ExportFormat.DVR_FULL,
-                filename=filename,
-                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                generated_at=datetime.utcnow(),
-                content=None,
-                download_url=None,
+            buffer = BytesIO(docx_bytes)
+            return StreamingResponse(
+                buffer,
+                media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                headers={"Content-Disposition": f"attachment; filename={filename}"},
             )
 
     except HTTPException:
@@ -260,7 +258,7 @@ async def export_assessment_docx(
 
 
 @router.get(
-    "/assessments/{assessment_id}/export/preview",
+    "/assessments/{assessment_id}/preview",
     response_model=ExportPreviewResponse,
 )
 async def get_export_preview(
@@ -963,7 +961,6 @@ async def get_print_settings(
 
 @router.put("/print-settings")
 async def save_print_settings(
-    company_id: UUID,
     settings_data: dict,
 ):
     """Save print settings."""
@@ -971,6 +968,7 @@ async def save_print_settings(
     from src.infrastructure.database.models.print_settings import PrintSettings
 
     try:
+        company_id = UUID(settings_data.get("company_id", ""))
         async with get_db() as session:
             result = await session.execute(
                 select(PrintSettings).where(PrintSettings.company_id == company_id)

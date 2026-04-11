@@ -116,11 +116,20 @@
         async loadDashboardData() {
             if (window.apiClient) {
                 try {
-                    const assessments = await window.apiClient.getTemplates();
+                    const [assessments, templates] = await Promise.all([
+                        window.apiClient.request('/', 'GET'),
+                        window.apiClient.getTemplates().catch(() => [])
+                    ]);
                     const totalEl = document.getElementById('total-assessments');
-                    if (totalEl) totalEl.textContent = assessments.length || 0;
+                    if (totalEl) totalEl.textContent = (Array.isArray(assessments) ? assessments.length : 0);
+                    const completedEl = document.getElementById('completed-assessments');
+                    if (completedEl) completedEl.textContent = Array.isArray(assessments) ? assessments.filter(a => a.status === 'completed').length : 0;
+                    const progressEl = document.getElementById('in-progress-assessments');
+                    if (progressEl) progressEl.textContent = Array.isArray(assessments) ? assessments.filter(a => a.status === 'in_progress' || a.status === 'draft').length : 0;
+                    const templatesEl = document.getElementById('available-templates');
+                    if (templatesEl) templatesEl.textContent = templates.length || 0;
                 } catch (e) {
-                    console.warn('Could not load dashboard data');
+                    console.warn('Could not load dashboard data:', e);
                 }
             }
         }
@@ -142,18 +151,84 @@
                         </select>
                     </div>
                     <div id="assessments-list" class="assessments-list">
-                        <p class="empty-message">Nessuna valutazione presente.</p>
+                        <p class="empty-message">Caricamento valutazioni...</p>
                     </div>
                 </div>
             `;
 
+            this.loadAssessments();
             this.bindAssessmentEvents();
+        }
+
+        async loadAssessments() {
+            if (!window.apiClient) return;
+            try {
+                const assessments = await window.apiClient.request('/assessments/', 'GET');
+                this.renderAssessmentsList(Array.isArray(assessments) ? assessments : []);
+            } catch (e) {
+                const list = document.getElementById('assessments-list');
+                if (list) list.innerHTML = '<p class="empty-message">Errore nel caricamento delle valutazioni.</p>';
+            }
+        }
+
+        renderAssessmentsList(assessments) {
+            const list = document.getElementById('assessments-list');
+            if (!list) return;
+
+            if (!assessments.length) {
+                list.innerHTML = '<p class="empty-message">Nessuna valutazione presente. Crea una nuova valutazione per iniziare.</p>';
+                return;
+            }
+
+            list.innerHTML = assessments.map(a => {
+                const statusLabel = { draft: 'Bozza', in_progress: 'In Corso', completed: 'Completata', review: 'In Revisione' }[a.status] || a.status;
+                const date = a.assessment_date ? new Date(a.assessment_date).toLocaleDateString('it-IT') : '-';
+                return `
+                <div class="assessment-card" data-id="${a.id}">
+                    <div class="assessment-info">
+                        <h3>${a.description || 'Valutazione Rischio Rumore'}</h3>
+                        <p class="assessment-meta">${date} &mdash; ${statusLabel}</p>
+                    </div>
+                    <div class="assessment-actions">
+                        <button class="btn btn-small" onclick="window.app.viewAssessment('${a.id}')">Apri</button>
+                        <button class="btn btn-small btn-secondary" onclick="window.app.exportAssessment('${a.id}')">Esporta</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        async viewAssessment(assessmentId) {
+            window.location.hash = '#assessment/' + assessmentId;
+        }
+
+        async exportAssessment(assessmentId) {
+            this.showToast('Preparazione documento...', 'info');
+            try {
+                const blob = await window.apiClient.exportDOCX(assessmentId, { language: 'it' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `DVR_RUMORE_${assessmentId}.docx`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+                this.showToast('Documento scaricato!', 'success');
+            } catch (e) {
+                this.showToast('Errore nell\'esportazione: ' + e.message, 'error');
+            }
         }
 
         bindAssessmentEvents() {
             const newBtn = document.getElementById('new-assessment-btn');
             if (newBtn) {
                 newBtn.addEventListener('click', () => this.showToast('Creazione nuova valutazione in fase di sviluppo', 'info'));
+            }
+            const searchInput = document.getElementById('search-assessments');
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => this.filterAssessments(e.target.value));
+            }
+            const statusFilter = document.getElementById('filter-status');
+            if (statusFilter) {
+                statusFilter.addEventListener('change', (e) => this.filterAssessmentsByStatus(e.target.value));
             }
         }
 

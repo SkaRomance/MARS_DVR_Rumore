@@ -2,7 +2,7 @@
 
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor, Cm
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
@@ -21,7 +21,13 @@ class DOCXGenerator:
 
     def _setup_styles(self):
         """Setup default Italian legal document styles."""
-        pass
+        self.default_font = "Times New Roman"
+        self.default_size = Pt(12)
+        self.heading_colors = {
+            1: RGBColor(0x1A, 0x36, 0x5D),
+            2: RGBColor(0x2C, 0x52, 0x82),
+            3: RGBColor(0x2D, 0x6A, 0x4F),
+        }
 
     async def generate_dvr(
         self,
@@ -33,6 +39,19 @@ class DOCXGenerator:
         """Generate full DVR DOCX document. Returns DOCX bytes."""
         document = Document()
 
+        if print_settings:
+            if "font_family" in print_settings:
+                self.default_font = print_settings["font_family"]
+            if "font_size" in print_settings:
+                self.default_size = Pt(print_settings["font_size"])
+            if "margins" in print_settings:
+                for section in document.sections:
+                    margins = print_settings["margins"]
+                    section.top_margin = Cm(margins.get("top", 25))
+                    section.bottom_margin = Cm(margins.get("bottom", 25))
+                    section.left_margin = Cm(margins.get("left", 20))
+                    section.right_margin = Cm(margins.get("right", 20))
+
         self._apply_header_footer(
             document,
             header_text="Valutazione Rischio Rumore - D.Lgs. 81/2008",
@@ -40,13 +59,13 @@ class DOCXGenerator:
             page_numbers=True,
         )
 
-        title = document.add_heading("VALUTAZIONE RISCHIO RUMORE", level=0)
+        title = self._add_heading(document, "VALUTAZIONE RISCHIO RUMORE", level=1)
         title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-        subtitle = document.add_paragraph("D.Lgs. 81/2008 Titolo VIII Capo II")
+        subtitle = self._add_paragraph(document, "D.Lgs. 81/2008 Titolo VIII Capo II")
         subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-        document.add_paragraph(f"ID Valutazione: {assessment_id}")
+        self._add_paragraph(document, f"ID Valutazione: {assessment_id}")
 
         self._insert_section_break(document)
 
@@ -173,25 +192,28 @@ class DOCXGenerator:
         """Insert page break between sections."""
         paragraph = document.add_paragraph()
         run = paragraph.add_run()
-        run.add_break(docx.enum.text.WD_BREAK.PAGE)
+        run.add_break(WD_BREAK.PAGE)
 
     def _add_heading(self, document: Document, text: str, level: int):
         """Add heading with proper styling."""
         heading = document.add_heading(text, level=level)
         for run in heading.runs:
-            run.font.name = "Times New Roman"
-            run.font.size = Pt(14 if level == 1 else 12)
+            run.font.name = self.default_font
+            run.font.size = self.default_size
             run.bold = True
+            if level in self.heading_colors:
+                run.font.color.rgb = self.heading_colors[level]
         if level == 1:
             heading.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        return heading
 
     def _add_paragraph(self, document: Document, text: str, bold: bool = False):
         """Add paragraph with proper styling."""
-        para = document.add_paragraph(text)
-        for run in para.runs:
-            run.font.name = "Times New Roman"
-            run.font.size = Pt(12)
-            run.bold = bold
+        para = document.add_paragraph()
+        run = para.add_run(text)
+        run.font.name = self.default_font
+        run.font.size = self.default_size
+        run.bold = bold
         return para
 
     def _add_html_content(
@@ -208,15 +230,20 @@ class DOCXGenerator:
         from html.parser import HTMLParser
 
         class HTMLToDocxParser(HTMLParser):
-            def __init__(self, docx_doc: Document):
+            def __init__(self, docx_doc: Document, generator: "DOCXGenerator"):
                 super().__init__()
                 self.document = docx_doc
+                self.generator = generator
                 self.stack: list[dict] = []
                 self.current_para: list[str] = []
+                self.current_runs: list[dict] = []
                 self.in_list = False
                 self.in_table = False
                 self.table_rows: list[list[str]] = []
                 self.current_row: list[str] = []
+                self.bold = False
+                self.italic = False
+                self.underline = False
 
             def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]):
                 if tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
@@ -234,23 +261,66 @@ class DOCXGenerator:
                     self.current_row = []
                 elif tag in ("td", "th"):
                     self.stack.append({"type": "cell", "cell_type": tag})
+                elif tag == "strong":
+                    self.bold = True
+                elif tag == "em":
+                    self.italic = True
+                elif tag == "u":
+                    self.underline = True
+
+            def _flush_para_to_runs(self):
+                text = "".join(self.current_para)
+                if text:
+                    self.current_runs.append(
+                        {
+                            "text": text,
+                            "bold": self.bold,
+                            "italic": self.italic,
+                            "underline": self.underline,
+                        }
+                    )
+                self.current_para = []
 
             def handle_endtag(self, tag: str):
                 if tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
+                    self._flush_para_to_runs()
                     item = self.stack.pop()
                     text = "".join(self.current_para)
-                    if text.strip():
-                        self.document.add_heading(text, level=item["level"])
+                    if text.strip() or self.current_runs:
+                        heading = self.generator._add_heading(
+                            self.document, text, level=item["level"]
+                        )
+                        for run_data in self.current_runs:
+                            run = heading.add_run(run_data["text"])
+                            run.font.name = self.generator.default_font
+                            run.font.size = self.generator.default_size
+                            run.bold = run_data["bold"] or True
+                            run.italic = run_data["italic"]
+                            run.underline = run_data["underline"]
                     self.current_para = []
+                    self.current_runs = []
                 elif tag in ("ul", "ol"):
                     self.in_list = False
                     self.stack.pop()
                 elif tag == "li":
+                    self._flush_para_to_runs()
                     item = self.stack.pop()
                     text = "".join(self.current_para)
-                    if text.strip():
-                        para = self.document.add_paragraph(text, style="List Bullet")
+                    if text.strip() or self.current_runs:
+                        para = self.document.add_paragraph(style="List Bullet")
+                        for run_data in self.current_runs:
+                            run = para.add_run(run_data["text"])
+                            run.font.name = self.generator.default_font
+                            run.font.size = self.generator.default_size
+                            run.bold = run_data["bold"]
+                            run.italic = run_data["italic"]
+                            run.underline = run_data["underline"]
+                        if not self.current_runs and text.strip():
+                            run = para.add_run(text)
+                            run.font.name = self.generator.default_font
+                            run.font.size = self.generator.default_size
                     self.current_para = []
+                    self.current_runs = []
                 elif tag == "table":
                     self.in_table = False
                     self.stack.pop()
@@ -260,12 +330,33 @@ class DOCXGenerator:
                 elif tag in ("td", "th"):
                     self.stack.pop()
                 elif tag == "p":
-                    text = "".join(self.current_para)
-                    if text.strip():
-                        self.document.add_paragraph(text)
+                    self._flush_para_to_runs()
+                    if self.current_runs:
+                        para = self.document.add_paragraph()
+                        for run_data in self.current_runs:
+                            run = para.add_run(run_data["text"])
+                            run.font.name = self.generator.default_font
+                            run.font.size = self.generator.default_size
+                            run.bold = run_data["bold"]
+                            run.italic = run_data["italic"]
+                            run.underline = run_data["underline"]
+                        self.current_runs = []
+                    else:
+                        text = "".join(self.current_para)
+                        if text.strip():
+                            self.generator._add_paragraph(self.document, text)
                     self.current_para = []
                 elif tag == "br":
                     self.current_para.append("\n")
+                elif tag == "strong":
+                    self._flush_para_to_runs()
+                    self.bold = False
+                elif tag == "em":
+                    self._flush_para_to_runs()
+                    self.italic = False
+                elif tag == "u":
+                    self._flush_para_to_runs()
+                    self.underline = False
 
             def handle_data(self, data: str):
                 if self.in_table and self.current_row is not None:
@@ -279,13 +370,13 @@ class DOCXGenerator:
                 if tag == "br":
                     self.current_para.append("\n")
 
-        parser = HTMLToDocxParser(document)
+        parser = HTMLToDocxParser(document, self)
         try:
             parser.feed(html_content)
         except Exception:
-            document.add_paragraph(html_content)
+            self._add_paragraph(document, html_content)
 
-        if self.in_table and parser.table_rows:
+        if parser.in_table and parser.table_rows:
             table = document.add_table(
                 rows=1, cols=len(parser.table_rows[0]) if parser.table_rows else 0
             )
