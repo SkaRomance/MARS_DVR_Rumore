@@ -312,7 +312,7 @@ data/
 | Phase 1 - Foundations | ✅ Complete | DB schema, catalogs, API bootstrap |
 | Phase 2 - Calculation Core | ✅ Complete | ISO 9612 engine, 34 tests passing |
 | Phase 3 - AI Integration | ✅ Complete | 7 agents, 38 tests passing |
-| Phase 4 - DVR Integration | 🔄 In Progress | DOCX export, WYSIWYG editor, templates |
+| Phase 4 - DVR Integration | ✅ Complete | DOCX export, WYSIWYG editor, templates, CRUD assessments |
 | Phase 5 - Hardening | ⏳ Planned | QA, security, audit logging |
 
 ---
