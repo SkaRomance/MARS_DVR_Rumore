@@ -1,0 +1,140 @@
+.config-form {
+    background: var(--color-bg-card);
+    padding: var(--spacing-xl);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border);
+    max-width: 600px;
+}
+
+.config-form .form-group input[type="color"] {
+    width: 60px;
+    height: 40px;
+    padding: 2px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.logo-upload {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.logo-upload input[type="file"] {
+    padding: var(--spacing-sm);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg);
+}
+
+.logo-preview {
+    min-height: 80px;
+    padding: var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logo-preview img {
+    max-width: 200px;
+    max-height: 80px;
+    object-fit: contain;
+}
+
+.logo-preview:empty::before {
+    content: 'Nessun logo caricato';
+    color: var(--color-text-muted);
+    font-style: italic;
+    font-size: 0.875rem;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-xl);
+    padding-top: var(--spacing-lg);
+    border-top: 1px solid var(--color-border);
+}
+
+.settings-section {
+    margin-bottom: var(--spacing-2xl);
+}
+
+.settings-section h2 {
+    margin-bottom: var(--spacing-lg);
+    font-size: 1.25rem;
+    color: var(--color-primary);
+    border-bottom: 2px solid var(--color-primary);
+    padding-bottom: var(--spacing-sm);
+}
+
+#template-preview {
+    margin-top: var(--spacing-xl);
+    padding: var(--spacing-lg);
+    background: var(--color-bg);
+    border-radius: var(--radius-md);
+    display: flex;
+    justify-content: center;
+    overflow: auto;
+}
+
+.preview-paper {
+    display: flex;
+    flex-direction: column;
+    font-size: 12px;
+}
+
+.preview-header {
+    text-align: center;
+    font-weight: bold;
+}
+
+.preview-content {
+    flex: 1;
+}
+
+.preview-footer {
+    text-align: center;
+    font-size: 10px;
+}
+
+.paper-size-info {
+    font-size: 0.8125rem;
+    color: var(--color-text-light);
+    margin-top: var(--spacing-xs);
+}
+
+.color-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.color-input-wrapper input[type="color"] {
+    flex-shrink: 0;
+}
+
+.color-input-wrapper input[type="text"] {
+    flex: 1;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+}
+
+@media (max-width: 768px) {
+    .config-form {
+        padding: var(--spacing-md);
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+    
+    .form-actions .btn {
+        width: 100%;
+    }
+}

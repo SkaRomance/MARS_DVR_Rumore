@@ -389,9 +389,9 @@ async def ai_detect_sources(
         )
 
         return SourceDetectionResponse(
-            detected_sources=[s.__dict__ for s in result.detected_sources],
-            confidence_overall=result.confidence_overall,
-            processing_notes=result.processing_notes,
+            matched_sources=[s.__dict__ for s in result.detected_sources],
+            unmatched_description=result.processing_notes,
+            confidence=result.confidence_overall,
         )
 
     except Exception as e:
@@ -477,13 +477,12 @@ async def suggestion_action(
                     detail=f"Suggestion {suggestion_id} not found",
                 )
 
-            if request.action == "approve":
+            if request.status == SuggestionStatus.APPROVED:
                 suggestion.status = AISuggestionStatus.APPROVED
-                suggestion.approved_by = request.approved_by
                 suggestion.approved_at = datetime.utcnow()
-            elif request.action == "reject":
+            elif request.status == SuggestionStatus.REJECTED:
                 suggestion.status = AISuggestionStatus.REJECTED
-                suggestion.rejection_reason = request.reason
+                suggestion.rejection_reason = request.feedback
 
             await session.commit()
 

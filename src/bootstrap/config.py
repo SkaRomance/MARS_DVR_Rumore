@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     log_level: str = "INFO"
     api_v1_prefix: str = "/api/v1/noise"
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:8080"]
 
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None

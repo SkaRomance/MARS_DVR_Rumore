@@ -1,37 +1,25 @@
 """FastAPI application main entry point."""
 
 from contextlib import asynccontextmanager
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from fastapi.staticfiles import StaticFiles
 
-from src.api.routes import assessments, health, ai_routes
+from src.api.routes import assessments, health, ai_routes, export_routes
 from src.bootstrap.config import get_settings
+from src.bootstrap.database import get_engine, dispose_engine, init_db
 
 settings = get_settings()
-
-_engine = None
-_async_session_factory = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager for startup/shutdown events."""
-    global _engine, _async_session_factory
-    _engine = create_async_engine(settings.database_url)
-    _async_session_factory = async_sessionmaker(
-        _engine, class_=AsyncSession, expire_on_commit=False
-    )
+    await init_db()
     yield
-    if _engine:
-        await _engine.dispose()
-
-
-def get_db():
-    """Dependency to get database session."""
-    if _async_session_factory is None:
-        raise RuntimeError("Database not initialized")
-    return _async_session_factory()
+    await dispose_engine()
 
 
 app = FastAPI(
@@ -51,7 +39,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+static_path = Path(__file__).parent.parent.parent / "static"
+app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+
 app.include_router(health.router, prefix="/health", tags=["Health"])
+app.include_router(export_routes.router, prefix=settings.api_v1_prefix, tags=["Export"])
 app.include_router(
     assessments.router, prefix=settings.api_v1_prefix, tags=["Assessments"]
 )
