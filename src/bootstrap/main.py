@@ -16,6 +16,7 @@ from src.api.routes import (
     license_routes,
     admin_routes,
     ateco_routes,
+    rag_routes,
 )
 from src.bootstrap.config import get_settings
 from src.bootstrap.database import get_engine, dispose_engine, init_db
@@ -71,6 +72,9 @@ app.include_router(
 )
 app.include_router(admin_routes.router, prefix=settings.api_v1_prefix, tags=["Admin"])
 app.include_router(ateco_routes.router, prefix=settings.api_v1_prefix, tags=["ATECO"])
+app.include_router(
+    rag_routes.router, prefix=settings.api_v1_prefix + "/rag", tags=["RAG"]
+)
 
 
 @app.get("/")

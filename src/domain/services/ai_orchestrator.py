@@ -1,4 +1,4 @@
-"""AI Orchestrator - Coordinates LLM calls, templates, and interaction logging."""
+"""AI Orchestrator - Coordinates LLM calls, templates, RAG context, and interaction logging."""
 
 import json
 import logging
@@ -22,6 +22,9 @@ class OrchestratorConfig:
     max_retries: int = 2
     timeout_seconds: float = 120.0
     cache_enabled: bool = True
+    rag_enabled: bool = True
+    rag_n_results: int = 5
+    rag_max_context_chars: int = 4000
 
 
 class AIOrchestrator:
@@ -29,6 +32,8 @@ class AIOrchestrator:
 
     Responsibilities:
     - Load and render prompt templates
+    -Retrieve relevant documents via RAG
+    - Inject RAG context into prompts
     - Call LLM provider with structured prompts
     - Parse and validate JSON responses
     - Log interactions to database
@@ -45,6 +50,14 @@ class AIOrchestrator:
         self._templates = template_loader or get_template_loader()
         self._config = config or OrchestratorConfig()
         self._cache: dict[str, LLMResponse] = {}
+        self._rag_service = None
+
+    def _get_rag_service(self):
+        if self._rag_service is None and self._config.rag_enabled:
+            from src.infrastructure.rag.rag_service import RAGService
+
+            self._rag_service = RAGService()
+        return self._rag_service
 
     async def execute(
         self,
@@ -54,7 +67,7 @@ class AIOrchestrator:
         assessment_id: UUID | None = None,
         store_interaction: bool = True,
     ) -> dict[str, Any]:
-        """Execute an AI prompt and return structured response.
+        """Execute an AI prompt with RAG context injection and return structured response.
 
         Args:
             template_name: Name of prompt template
@@ -65,45 +78,60 @@ class AIOrchestrator:
 
         Returns:
             Parsed JSON response from LLM
-
-        Raises:
-            AIOrchestratorError: If execution fails
         """
-        # Build system prompt
         system_prompt = self._build_system_prompt(interaction_type)
-
-        # Render template
         user_prompt = self._templates.render(template_name, context)
 
-        # Check cache if enabled
+        rag_context = None
+        rag = self._get_rag_service()
+        if rag:
+            try:
+                query_text = context.get("rag_query", user_prompt[:500])
+                category = context.get("rag_category")
+                results = await rag.query(
+                    query_text=query_text,
+                    n_results=self._config.rag_n_results,
+                    category_filter=category,
+                )
+                if results:
+                    rag_context = rag.build_context(
+                        results, max_chars=self._config.rag_max_context_chars
+                    )
+            except Exception as e:
+                logger.warning(
+                    "RAG retrieval failed (continuing without context): %s", e
+                )
+
+        if rag_context:
+            system_prompt += (
+                "\n\n--- CONTESTO NORMATIVO E TECNICO (da documenti di riferimento) ---\n"
+                + rag_context
+                + "\n--- FINE CONTESTO ---\n\n"
+                "Usa il contesto sopra come riferimento primario. Cita le fonti quando possibile. "
+                "Se il contesto non contiene informazioni rilevanti, rispondi basandoti sulla tua conoscenza."
+            )
+
         cache_key = f"{template_name}:{hash(user_prompt)}"
         if self._config.cache_enabled and cache_key in self._cache:
             logger.info("Using cached response for %s", template_name)
             response = self._cache[cache_key]
         else:
-            # Create request
             request = LLMRequest(
                 prompt=user_prompt,
                 system_prompt=system_prompt,
                 max_tokens=750,
                 temperature=0.3,
             )
-
-            # Call LLM with retries
             response = await self._call_with_retries(request)
-
-            # Cache if enabled
             if self._config.cache_enabled:
                 self._cache[cache_key] = response
 
-        # Parse response
         try:
             result = self._parse_json_response(response.content)
         except json.JSONDecodeError as e:
             logger.warning("Failed to parse JSON, returning raw content: %s", e)
             result = {"raw_content": response.content, "parse_error": str(e)}
 
-        # Log interaction (if db session provided via context)
         if store_interaction and "db_session" in context:
             await self._log_interaction(
                 session=context["db_session"],
@@ -154,7 +182,6 @@ class AIOrchestrator:
 
     def _parse_json_response(self, content: str) -> dict[str, Any]:
         """Parse JSON from LLM response, handling markdown code blocks."""
-        # Remove markdown code blocks if present
         content = content.strip()
         if content.startswith("```json"):
             content = content[7:]
@@ -183,7 +210,7 @@ class AIOrchestrator:
             interaction = AIInteraction(
                 assessment_id=assessment_id,
                 interaction_type=interaction_type,
-                prompt=prompt[:10000],  # Truncate if too long
+                prompt=prompt[:10000],
                 response=response[:10000],
                 model_name=model_name,
                 tokens_used=tokens_used,

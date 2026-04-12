@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     ollama_base_url: str = "https://ollama.com"
     ollama_api_key: str | None = None
-    ollama_model: str = "glm-5.1"
+    ollama_model: str = "glm-5.1:cloud"
 
     ai_max_tokens: int = 750
     ai_temperature: float = 0.3
