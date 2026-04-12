@@ -45,3 +45,6 @@ data/*.xlsx
 data/*.json
 !data/ateco/.gitkeep
 !data/knowledge_base/.gitkeep
+
+test_db.sqlite3
+.opencode/

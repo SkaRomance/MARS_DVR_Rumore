@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MARS DVR Rumore - Editor Documentale</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/editor.css">
+    <link rel="stylesheet" href="css/template-config.css">
+</head>
+<body>
+    <section id="login-section" style="display:flex">
+        <div class="login-container">
+            <h2>MARS DVR Rumore</h2>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="login-email">Email</label>
+                    <input type="email" id="login-email" required>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" required>
+                </div>
+                <div id="login-error" class="error-text"></div>
+                <button type="submit" class="btn btn-primary" style="width:100%">Accedi</button>
+            </form>
+        </div>
+    </section>
+
+    <section id="app-section" style="display:none">
+    <div id="app">
+        <div class="user-bar">
+            <span id="current-user"></span>
+            <button class="btn btn-secondary btn-small" id="logout-btn">Logout</button>
+        </div>
+        <nav class="main-nav">
+            <div class="nav-brand">MARS DVR Rumore</div>
+            <div class="nav-links">
+                <a href="#dashboard">Dashboard</a>
+                <a href="#assessments">Valutazioni</a>
+                <a href="#templates">Template</a>
+                <a href="#settings">Impostazioni</a>
+            </div>
+        </nav>
+        
+        <main id="main-content" class="content">
+        </main>
+        
+        <div id="toast-container"></div>
+    </div>
+    </section>
+    
+    <script src="js/auth.js"></script>
+    <script src="js/api-client.js"></script>
+    <script src="js/toolbar.js"></script>
+    <script src="js/template-config.js"></script>
+    <script src="js/preview.js"></script>
+    <script src="js/export.js"></script>
+    <script src="js/editor.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

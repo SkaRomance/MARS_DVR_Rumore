@@ -14,23 +14,36 @@ class NoiseAssessment(Base):
 
     __tablename__ = "noise_assessment"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
+    company_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
     unit_site_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True, index=True
     )
 
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[EntityStatus] = mapped_column(String(20), default=EntityStatus.active.value)
+    status: Mapped[EntityStatus] = mapped_column(
+        String(20), default=EntityStatus.active.value
+    )
 
-    assessment_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    assessment_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     next_review_date: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 
     # Worker exposure tracking
     workers_count_exposed: Mapped[int | None] = mapped_column(Integer, default=0)
-    representative_workers: Mapped[list[str] | None] = mapped_column(Text, nullable=True)
+    representative_workers: Mapped[list[str] | None] = mapped_column(
+        Text, nullable=True
+    )
 
     # Methodology
     measurement_protocol: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -38,9 +51,13 @@ class NoiseAssessment(Base):
 
     # Versioning
     version: Mapped[int] = mapped_column(default=1)
-    previous_version_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    previous_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -50,7 +67,9 @@ class NoiseAssessment(Base):
     _is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
 
     def __repr__(self) -> str:
-        return f"<NoiseAssessment(id={self.id}, status='{self.status}', v{self.version})>"
+        return (
+            f"<NoiseAssessment(id={self.id}, status='{self.status}', v{self.version})>"
+        )
 
 
 class NoiseAssessmentResult(Base):
@@ -58,14 +77,23 @@ class NoiseAssessmentResult(Base):
 
     __tablename__ = "noise_assessment_result"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    assessment_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
+    assessment_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
     job_role_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True, index=True
     )
 
     # LEX values (Art. 190 D.Lgs. 81/2008)
-    lex_8h: Mapped[float | None] = mapped_column(nullable=True, comment="LEX,8h in dB(A)")
+    lex_8h: Mapped[float | None] = mapped_column(
+        nullable=True, comment="LEX,8h in dB(A)"
+    )
     lex_weekly: Mapped[float | None] = mapped_column(
         nullable=True, comment="LEX,weekly in dB(A) - Art. 190 c.2"
     )
@@ -91,7 +119,9 @@ class NoiseAssessmentResult(Base):
     k_tone: Mapped[float] = mapped_column(default=0.0)
     k_background: Mapped[float] = mapped_column(default=0.0)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
     def __repr__(self) -> str:
         return f"<NoiseAssessmentResult(lex={self.lex_8h}dB, band='{self.risk_band}')>"

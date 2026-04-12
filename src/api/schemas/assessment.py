@@ -51,7 +51,9 @@ class PhaseExposureRequest(BaseModel):
     laeq_db_a: float = Field(
         ..., ge=0, le=140, description="A-weighted equivalent continuous sound level"
     )
-    duration_hours: float = Field(..., gt=0, le=24, description="Exposure duration in hours")
+    duration_hours: float = Field(
+        ..., gt=0, le=24, description="Exposure duration in hours"
+    )
     origin: str = Field(
         default="estimated", description="Data origin: measured, calculated, estimated"
     )
@@ -83,12 +85,25 @@ class CalculationResponse(BaseModel):
     lcpeak_aggregated: Optional[float] = Field(
         default=None, description="Aggregated C-weighted peak in dB(C)"
     )
-    uncertainty_db: Optional[float] = Field(default=None, description="Combined uncertainty in dB")
+    uncertainty_db: Optional[float] = Field(
+        default=None, description="Combined uncertainty in dB"
+    )
     confidence_score: float = Field(description="Confidence score 0-1")
-    risk_band: str = Field(description="Risk band: negligible, low, medium, high, critical")
+    risk_band: str = Field(
+        description="Risk band: negligible, low, medium, high, critical"
+    )
     k_impulse: float = Field(default=0.0)
     k_tone: float = Field(default=0.0)
     k_background: float = Field(default=0.0)
+
+
+class AssessmentUpdate(BaseModel):
+    """Request schema for partially updating a noise assessment."""
+
+    description: Optional[str] = None
+    status: Optional[str] = None
+    version: Optional[int] = None
+    unit_site_id: Optional[UUID] = None
 
 
 class HealthCheckResponse(BaseModel):

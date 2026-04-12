@@ -1,0 +1,57 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    ports:
+      - "8085:8085"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://mars_noise:mars_noise_password@db:5432/mars_noise
+      - REDIS_URL=redis://redis:6379/0
+      - APP_ENV=production
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-me-in-production}
+      - KEYGEN_ACCOUNT_ID=${KEYGEN_ACCOUNT_ID:-}
+      - KEYGEN_PRODUCT_ID=${KEYGEN_PRODUCT_ID:-}
+      - KEYGEN_ADMIN_TOKEN=${KEYGEN_ADMIN_TOKEN:-}
+      - OLLAMA_API_KEY=${OLLAMA_API_KEY:-}
+      - CORS_ORIGINS=["http://localhost:3000","http://localhost:8080","http://localhost:8085"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mars_noise
+      POSTGRES_PASSWORD: mars_noise_password
+      POSTGRES_DB: mars_noise
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mars_noise"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
