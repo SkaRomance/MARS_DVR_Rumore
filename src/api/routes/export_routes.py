@@ -248,6 +248,8 @@ async def export_assessment_docx(
                 sections_content=sections_content,
                 print_settings=print_settings_dict,
                 language=request.language.value,
+                logo_data=tenant.logo_data,
+                logo_mime_type=tenant.logo_mime_type,
             )
 
             latest_doc_result = await session.execute(

@@ -35,9 +35,18 @@ class DOCXGenerator:
         sections_content: dict[str, str],
         print_settings: dict | None = None,
         language: str = "it",
+        logo_data: bytes | None = None,
+        logo_mime_type: str | None = None,
     ) -> bytes:
         """Generate full DVR DOCX document. Returns DOCX bytes."""
         document = Document()
+
+        if logo_data:
+            logo_stream = io.BytesIO(logo_data)
+            logo_paragraph = document.add_paragraph()
+            logo_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            logo_run = logo_paragraph.add_run()
+            logo_run.add_picture(logo_stream, width=Inches(1.5))
 
         if print_settings:
             if "font_family" in print_settings:
