@@ -16,6 +16,7 @@ async def log_audit(
     user_id: str | UUID | None = None,
     details: dict | None = None,
     ip_address: str | None = None,
+    db_session: AsyncSession | None = None,
 ):
     logger.info(
         "audit_event",
@@ -28,8 +29,8 @@ async def log_audit(
         ip_address=ip_address,
     )
 
-    try:
-        async with get_db() as session:
+    if db_session is not None:
+        try:
             entry = AuditLog(
                 action=action,
                 resource_type=resource_type,
@@ -39,7 +40,27 @@ async def log_audit(
                 details=details,
                 ip_address=ip_address,
             )
-            session.add(entry)
-            await session.commit()
-    except Exception:
-        logger.error("audit_log_write_failed", action=action, resource_type=resource_type)
+            db_session.add(entry)
+            await db_session.commit()
+        except Exception:
+            logger.error(
+                "audit_log_write_failed", action=action, resource_type=resource_type
+            )
+    else:
+        try:
+            async with get_db() as session:
+                entry = AuditLog(
+                    action=action,
+                    resource_type=resource_type,
+                    resource_id=str(resource_id) if resource_id else None,
+                    tenant_id=str(tenant_id) if tenant_id else None,
+                    user_id=str(user_id) if user_id else None,
+                    details=details,
+                    ip_address=ip_address,
+                )
+                session.add(entry)
+                await session.commit()
+        except Exception:
+            logger.error(
+                "audit_log_write_failed", action=action, resource_type=resource_type
+            )

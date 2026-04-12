@@ -1,5 +1,7 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.bootstrap.database import get_db
 from src.api.schemas.ateco import AtecoMacroCategoryResponse, AtecoCodeInfoResponse
 from src.domain.services.ateco_service import (
     get_macro_category,
@@ -36,6 +38,6 @@ async def get_single_macro_category(category_code: str):
     "/code/{ateco_code}",
     response_model=AtecoCodeInfoResponse,
 )
-async def get_ateco_code_info(ateco_code: str):
-    macro = await get_macro_category_for_ateco(ateco_code)
+async def get_ateco_code_info(ateco_code: str, db: AsyncSession = Depends(get_db)):
+    macro = await get_macro_category_for_ateco(ateco_code, db_session=db)
     return AtecoCodeInfoResponse(ateco_code=ateco_code, macro_category=macro)

@@ -7,6 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas.ai import (
     BootstrapRequest,
@@ -29,6 +30,7 @@ from src.api.schemas.ai import (
     SuggestionStatus,
 )
 from src.bootstrap.config import get_settings, Settings
+from src.bootstrap.database import get_db
 from src.infrastructure.llm import OllamaProvider, MockProvider
 from src.infrastructure.auth.dependencies import get_current_user, get_current_tenant
 from src.infrastructure.database.models.user import User
@@ -427,38 +429,36 @@ async def get_suggestions(
     status_filter: SuggestionStatus | None = None,
     current_user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
+    db: AsyncSession = Depends(get_db),
     _rate_limit=Depends(ai_limiter),
 ):
     """Get AI suggestions for an assessment."""
     from sqlalchemy import select
     from src.infrastructure.database.models.ai_suggestion import AISuggestion
-    from src.bootstrap.main import get_db
 
     try:
-        session = get_db()
-        async with session:
-            query = select(AISuggestion).where(
-                AISuggestion.assessment_id == assessment_id,
-                AISuggestion.tenant_id == tenant.id,
+        query = select(AISuggestion).where(
+            AISuggestion.assessment_id == assessment_id,
+            AISuggestion.tenant_id == tenant.id,
+        )
+        if status_filter:
+            query = query.where(AISuggestion.status == status_filter.value)
+
+        result = await db.execute(query)
+        suggestions = result.scalars().all()
+
+        return [
+            SuggestionResponse(
+                id=s.id,
+                suggestion_type=s.suggestion_type,
+                title=s.title,
+                content=s.content,
+                status=s.status,
+                confidence_score=s.confidence_score,
+                created_at=s.created_at,
             )
-            if status_filter:
-                query = query.where(AISuggestion.status == status_filter.value)
-
-            result = await session.execute(query)
-            suggestions = result.scalars().all()
-
-            return [
-                SuggestionResponse(
-                    id=s.id,
-                    suggestion_type=s.suggestion_type,
-                    title=s.title,
-                    content=s.content,
-                    status=s.status,
-                    confidence_score=s.confidence_score,
-                    created_at=s.created_at,
-                )
-                for s in suggestions
-            ]
+            for s in suggestions
+        ]
 
     except Exception as e:
         logger.error("Get suggestions failed: %s", e)
@@ -475,44 +475,42 @@ async def suggestion_action(
     request: SuggestionActionRequest,
     current_user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
+    db: AsyncSession = Depends(get_db),
     _rate_limit=Depends(ai_limiter),
 ):
     """Approve or reject an AI suggestion."""
-    from datetime import datetime
+    from datetime import datetime, timezone
     from sqlalchemy import select, update
     from src.infrastructure.database.models.ai_suggestion import (
         AISuggestion,
         AISuggestionStatus,
     )
-    from src.bootstrap.main import get_db
 
     try:
-        session = get_db()
-        async with session:
-            result = await session.execute(
-                select(AISuggestion).where(
-                    AISuggestion.id == suggestion_id,
-                    AISuggestion.tenant_id == tenant.id,
-                )
+        result = await db.execute(
+            select(AISuggestion).where(
+                AISuggestion.id == suggestion_id,
+                AISuggestion.tenant_id == tenant.id,
             )
-            suggestion = result.scalar_one_or_none()
+        )
+        suggestion = result.scalar_one_or_none()
 
-            if not suggestion:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Suggestion {suggestion_id} not found",
-                )
+        if not suggestion:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Suggestion {suggestion_id} not found",
+            )
 
-            if request.status == SuggestionStatus.APPROVED:
-                suggestion.status = AISuggestionStatus.APPROVED
-                suggestion.approved_at = datetime.utcnow()
-            elif request.status == SuggestionStatus.REJECTED:
-                suggestion.status = AISuggestionStatus.REJECTED
-                suggestion.rejection_reason = request.feedback
+        if request.status == SuggestionStatus.APPROVED:
+            suggestion.status = AISuggestionStatus.APPROVED
+            suggestion.approved_at = datetime.now(timezone.utc)
+        elif request.status == SuggestionStatus.REJECTED:
+            suggestion.status = AISuggestionStatus.REJECTED
+            suggestion.rejection_reason = request.feedback
 
-            await session.commit()
+        await db.commit()
 
-            return {"status": "ok", "id": suggestion_id}
+        return {"status": "ok", "id": suggestion_id}
 
     except HTTPException:
         raise
@@ -532,39 +530,37 @@ async def get_interactions(
     assessment_id: UUID,
     current_user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
+    db: AsyncSession = Depends(get_db),
     _rate_limit=Depends(ai_limiter),
 ):
     """Get AI interaction history for an assessment."""
     from sqlalchemy import select
     from src.infrastructure.database.models.ai_interaction import AIInteraction
-    from src.bootstrap.main import get_db
 
     try:
-        session = get_db()
-        async with session:
-            result = await session.execute(
-                select(AIInteraction)
-                .where(
-                    AIInteraction.assessment_id == assessment_id,
-                    AIInteraction.tenant_id == tenant.id,
-                )
-                .order_by(AIInteraction.created_at.desc())
-                .limit(100)
+        result = await db.execute(
+            select(AIInteraction)
+            .where(
+                AIInteraction.assessment_id == assessment_id,
+                AIInteraction.tenant_id == tenant.id,
             )
-            interactions = result.scalars().all()
+            .order_by(AIInteraction.created_at.desc())
+            .limit(100)
+        )
+        interactions = result.scalars().all()
 
-            return [
-                InteractionResponse(
-                    id=i.id,
-                    interaction_type=i.interaction_type,
-                    prompt=i.prompt[:500] if i.prompt else "",
-                    response=i.response[:500] if i.response else None,
-                    model_name=i.model_name,
-                    tokens_used=i.tokens_used,
-                    created_at=i.created_at,
-                )
-                for i in interactions
-            ]
+        return [
+            InteractionResponse(
+                id=i.id,
+                interaction_type=i.interaction_type,
+                prompt=i.prompt[:500] if i.prompt else "",
+                response=i.response[:500] if i.response else None,
+                model_name=i.model_name,
+                tokens_used=i.tokens_used,
+                created_at=i.created_at,
+            )
+            for i in interactions
+        ]
 
     except Exception as e:
         logger.error("Get interactions failed: %s", e)

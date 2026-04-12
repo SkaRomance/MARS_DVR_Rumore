@@ -1,6 +1,6 @@
 """Health check route."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter
 
 from src.api.schemas.assessment import HealthCheckResponse
@@ -13,4 +13,8 @@ router = APIRouter()
 @router.get("/", response_model=HealthCheckResponse)
 async def health_check():
     """Health check endpoint."""
-    return {"status": "healthy", "version": settings.app_version, "timestamp": datetime.utcnow()}
+    return {
+        "status": "healthy",
+        "version": settings.app_version,
+        "timestamp": datetime.now(timezone.utc),
+    }
