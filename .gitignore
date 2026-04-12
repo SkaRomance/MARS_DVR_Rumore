@@ -48,3 +48,4 @@ data/*.json
 
 test_db.sqlite3
 .opencode/
+data/
