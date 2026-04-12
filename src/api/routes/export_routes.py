@@ -8,7 +8,7 @@ from typing import Any
 
 from io import BytesIO
 
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Query
 from fastapi.responses import Response, StreamingResponse
 from src.infrastructure.auth.dependencies import get_current_user, get_current_tenant
 from src.infrastructure.database.models.user import User
@@ -44,6 +44,7 @@ async def export_assessment_json(
     current_user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
     _rate_limit=Depends(export_limiter),
+    language: str = Query(default="it", pattern="^(it|en)$"),
 ):
     """Export assessment as JSON document."""
     from sqlalchemy import select
@@ -135,6 +136,7 @@ async def export_assessment_docx(
     current_user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
     _rate_limit=Depends(export_limiter),
+    language: str = Query(default="it", pattern="^(it|en)$"),
 ):
     """Export assessment as DOCX document."""
     from sqlalchemy import select
@@ -299,6 +301,7 @@ async def get_export_preview(
     current_user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
     _rate_limit=Depends(export_limiter),
+    language: str = Query(default="it", pattern="^(it|en)$"),
 ):
     """Get export preview without generating full document."""
     from sqlalchemy import select

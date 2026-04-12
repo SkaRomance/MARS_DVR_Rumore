@@ -7,10 +7,22 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from src.api.routes import auth_routes, assessments, health, ai_routes, export_routes, license_routes, admin_routes
+from src.api.routes import (
+    auth_routes,
+    assessments,
+    health,
+    ai_routes,
+    export_routes,
+    license_routes,
+    admin_routes,
+    ateco_routes,
+)
 from src.bootstrap.config import get_settings
 from src.bootstrap.database import get_engine, dispose_engine, init_db
-from src.infrastructure.middleware.rate_limiter import init_rate_limiter, close_rate_limiter
+from src.infrastructure.middleware.rate_limiter import (
+    init_rate_limiter,
+    close_rate_limiter,
+)
 from src.infrastructure.middleware.audit import AuditMiddleware
 
 settings = get_settings()
@@ -54,8 +66,11 @@ app.include_router(
     assessments.router, prefix=settings.api_v1_prefix, tags=["Assessments"]
 )
 app.include_router(ai_routes.router, prefix=settings.api_v1_prefix, tags=["AI"])
-app.include_router(license_routes.router, prefix=settings.api_v1_prefix, tags=["License"])
+app.include_router(
+    license_routes.router, prefix=settings.api_v1_prefix, tags=["License"]
+)
 app.include_router(admin_routes.router, prefix=settings.api_v1_prefix, tags=["Admin"])
+app.include_router(ateco_routes.router, prefix=settings.api_v1_prefix, tags=["ATECO"])
 
 
 @app.get("/")

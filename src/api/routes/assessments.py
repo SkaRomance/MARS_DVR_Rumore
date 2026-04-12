@@ -1,13 +1,13 @@
 """Assessments API route."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas.assessment import (
     AssessmentCreate,
@@ -40,26 +40,23 @@ async def create_assessment(
     data: AssessmentCreate,
     current_user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
+    db: AsyncSession = Depends(get_db),
     _rate_limit=Depends(default_limiter),
 ):
-    """Create a new noise assessment."""
     try:
-        async with get_db() as session:
-            assessment = NoiseAssessment(
-                company_id=data.company_id,
-                unit_site_id=data.unit_site_id,
-                description=data.description,
-                status=EntityStatus.active.value,
-                version=1,
-                assessment_date=datetime.utcnow(),
-            )
-            assessment.tenant_id = tenant.id
-            session.add(assessment)
-            await session.commit()
-            await session.refresh(assessment)
-
-            return AssessmentResponse.model_validate(assessment)
-
+        assessment = NoiseAssessment(
+            company_id=data.company_id,
+            unit_site_id=data.unit_site_id,
+            description=data.description,
+            status=EntityStatus.active.value,
+            version=1,
+            assessment_date=datetime.now(timezone.utc),
+            tenant_id=tenant.id,
+        )
+        db.add(assessment)
+        await db.commit()
+        await db.refresh(assessment)
+        return AssessmentResponse.model_validate(assessment)
     except HTTPException:
         raise
     except Exception as e:
@@ -77,27 +74,24 @@ async def list_assessments(
     status_filter: Optional[str] = Query(default=None, alias="status"),
     current_user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
+    db: AsyncSession = Depends(get_db),
     _rate_limit=Depends(default_limiter),
 ):
-    """List all noise assessments with pagination."""
     try:
-        async with get_db() as session:
-            query = select(NoiseAssessment).where(
-                NoiseAssessment._is_deleted == False,  # noqa: E712
-                NoiseAssessment.tenant_id == tenant.id,
-            )
+        query = select(NoiseAssessment).where(
+            NoiseAssessment._is_deleted == False,  # noqa: E712
+            NoiseAssessment.tenant_id == tenant.id,
+        )
 
-            if status_filter:
-                query = query.where(NoiseAssessment.status == status_filter)
+        if status_filter:
+            query = query.where(NoiseAssessment.status == status_filter)
 
-            query = query.order_by(NoiseAssessment.created_at.desc())
-            query = query.offset(skip).limit(limit)
+        query = query.order_by(NoiseAssessment.created_at.desc())
+        query = query.offset(skip).limit(limit)
 
-            result = await session.execute(query)
-            assessments = result.scalars().all()
-
-            return [AssessmentResponse.model_validate(a) for a in assessments]
-
+        result = await db.execute(query)
+        assessments = result.scalars().all()
+        return [AssessmentResponse.model_validate(a) for a in assessments]
     except HTTPException:
         raise
     except Exception as e:
@@ -113,28 +107,24 @@ async def get_assessment(
     assessment_id: UUID,
     current_user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
+    db: AsyncSession = Depends(get_db),
     _rate_limit=Depends(default_limiter),
 ):
-    """Get an existing noise assessment."""
     try:
-        async with get_db() as session:
-            result = await session.execute(
-                select(NoiseAssessment).where(
-                    NoiseAssessment.id == assessment_id,
-                    NoiseAssessment._is_deleted == False,  # noqa: E712
-                    NoiseAssessment.tenant_id == tenant.id,
-                )
+        result = await db.execute(
+            select(NoiseAssessment).where(
+                NoiseAssessment.id == assessment_id,
+                NoiseAssessment._is_deleted == False,  # noqa: E712
+                NoiseAssessment.tenant_id == tenant.id,
             )
-            assessment = result.scalar_one_or_none()
-
-            if not assessment:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Assessment {assessment_id} not found",
-                )
-
-            return AssessmentResponse.model_validate(assessment)
-
+        )
+        assessment = result.scalar_one_or_none()
+        if not assessment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Assessment {assessment_id} not found",
+            )
+        return AssessmentResponse.model_validate(assessment)
     except HTTPException:
         raise
     except Exception as e:
@@ -151,35 +141,31 @@ async def update_assessment(
     data: AssessmentUpdate,
     current_user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
+    db: AsyncSession = Depends(get_db),
     _rate_limit=Depends(default_limiter),
 ):
-    """Update an existing noise assessment."""
     try:
-        async with get_db() as session:
-            result = await session.execute(
-                select(NoiseAssessment).where(
-                    NoiseAssessment.id == assessment_id,
-                    NoiseAssessment._is_deleted == False,  # noqa: E712
-                    NoiseAssessment.tenant_id == tenant.id,
-                )
+        result = await db.execute(
+            select(NoiseAssessment).where(
+                NoiseAssessment.id == assessment_id,
+                NoiseAssessment._is_deleted == False,  # noqa: E712
+                NoiseAssessment.tenant_id == tenant.id,
             )
-            assessment = result.scalar_one_or_none()
+        )
+        assessment = result.scalar_one_or_none()
+        if not assessment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Assessment {assessment_id} not found",
+            )
 
-            if not assessment:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Assessment {assessment_id} not found",
-                )
+        update_data = data.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(assessment, field, value)
 
-            update_data = data.model_dump(exclude_unset=True)
-            for field, value in update_data.items():
-                setattr(assessment, field, value)
-
-            await session.commit()
-            await session.refresh(assessment)
-
-            return AssessmentResponse.model_validate(assessment)
-
+        await db.commit()
+        await db.refresh(assessment)
+        return AssessmentResponse.model_validate(assessment)
     except HTTPException:
         raise
     except Exception as e:
@@ -195,29 +181,25 @@ async def delete_assessment(
     assessment_id: UUID,
     current_user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
+    db: AsyncSession = Depends(get_db),
     _rate_limit=Depends(default_limiter),
 ):
-    """Soft delete a noise assessment."""
     try:
-        async with get_db() as session:
-            result = await session.execute(
-                select(NoiseAssessment).where(
-                    NoiseAssessment.id == assessment_id,
-                    NoiseAssessment._is_deleted == False,  # noqa: E712
-                    NoiseAssessment.tenant_id == tenant.id,
-                )
+        result = await db.execute(
+            select(NoiseAssessment).where(
+                NoiseAssessment.id == assessment_id,
+                NoiseAssessment._is_deleted == False,  # noqa: E712
+                NoiseAssessment.tenant_id == tenant.id,
             )
-            assessment = result.scalar_one_or_none()
-
-            if not assessment:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Assessment {assessment_id} not found",
-                )
-
-            assessment._is_deleted = True
-            await session.commit()
-
+        )
+        assessment = result.scalar_one_or_none()
+        if not assessment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Assessment {assessment_id} not found",
+            )
+        assessment._is_deleted = True
+        await db.commit()
     except HTTPException:
         raise
     except Exception as e:
@@ -234,7 +216,6 @@ async def calculate_exposure(
     current_user: User = Depends(get_current_user),
     _rate_limit=Depends(default_limiter),
 ):
-    """Calculate noise exposure for an assessment."""
     exposures = [
         PhaseExposure(
             laeq_db_a=exp.laeq_db_a,
