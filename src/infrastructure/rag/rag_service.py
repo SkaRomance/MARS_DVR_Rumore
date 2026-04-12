@@ -67,7 +67,7 @@ class RAGService:
 
         collection = self._get_collection()
 
-        batch_size = 500
+        batch_size = 2000
         total_indexed = 0
 
         for i in range(0, len(chunks), batch_size):
