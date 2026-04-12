@@ -5,7 +5,7 @@ from datetime import datetime
 from uuid import UUID
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -24,6 +24,10 @@ from src.domain.services.noise_calculation import (
 )
 from src.infrastructure.database.models.noise_assessment import NoiseAssessment
 from src.infrastructure.database.enums import EntityStatus
+from src.infrastructure.auth.dependencies import get_current_user, get_current_tenant
+from src.infrastructure.database.models.user import User
+from src.infrastructure.database.models.tenant import Tenant
+from src.infrastructure.middleware.rate_limiter import default_limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -32,7 +36,12 @@ router = APIRouter()
 @router.post(
     "/", response_model=AssessmentResponse, status_code=status.HTTP_201_CREATED
 )
-async def create_assessment(data: AssessmentCreate):
+async def create_assessment(
+    data: AssessmentCreate,
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    _rate_limit=Depends(default_limiter),
+):
     """Create a new noise assessment."""
     try:
         async with get_db() as session:
@@ -44,6 +53,7 @@ async def create_assessment(data: AssessmentCreate):
                 version=1,
                 assessment_date=datetime.utcnow(),
             )
+            assessment.tenant_id = tenant.id
             session.add(assessment)
             await session.commit()
             await session.refresh(assessment)
@@ -56,7 +66,7 @@ async def create_assessment(data: AssessmentCreate):
         logger.error("Failed to create assessment: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e),
+            detail="Internal server error",
         )
 
 
@@ -65,12 +75,16 @@ async def list_assessments(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
     status_filter: Optional[str] = Query(default=None, alias="status"),
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    _rate_limit=Depends(default_limiter),
 ):
     """List all noise assessments with pagination."""
     try:
         async with get_db() as session:
             query = select(NoiseAssessment).where(
-                NoiseAssessment._is_deleted == False  # noqa: E712
+                NoiseAssessment._is_deleted == False,  # noqa: E712
+                NoiseAssessment.tenant_id == tenant.id,
             )
 
             if status_filter:
@@ -90,12 +104,17 @@ async def list_assessments(
         logger.error("Failed to list assessments: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e),
+            detail="Internal server error",
         )
 
 
 @router.get("/{assessment_id}", response_model=AssessmentResponse)
-async def get_assessment(assessment_id: UUID):
+async def get_assessment(
+    assessment_id: UUID,
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    _rate_limit=Depends(default_limiter),
+):
     """Get an existing noise assessment."""
     try:
         async with get_db() as session:
@@ -103,6 +122,7 @@ async def get_assessment(assessment_id: UUID):
                 select(NoiseAssessment).where(
                     NoiseAssessment.id == assessment_id,
                     NoiseAssessment._is_deleted == False,  # noqa: E712
+                    NoiseAssessment.tenant_id == tenant.id,
                 )
             )
             assessment = result.scalar_one_or_none()
@@ -121,12 +141,18 @@ async def get_assessment(assessment_id: UUID):
         logger.error("Failed to get assessment: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e),
+            detail="Internal server error",
         )
 
 
 @router.put("/{assessment_id}", response_model=AssessmentResponse)
-async def update_assessment(assessment_id: UUID, data: AssessmentUpdate):
+async def update_assessment(
+    assessment_id: UUID,
+    data: AssessmentUpdate,
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    _rate_limit=Depends(default_limiter),
+):
     """Update an existing noise assessment."""
     try:
         async with get_db() as session:
@@ -134,6 +160,7 @@ async def update_assessment(assessment_id: UUID, data: AssessmentUpdate):
                 select(NoiseAssessment).where(
                     NoiseAssessment.id == assessment_id,
                     NoiseAssessment._is_deleted == False,  # noqa: E712
+                    NoiseAssessment.tenant_id == tenant.id,
                 )
             )
             assessment = result.scalar_one_or_none()
@@ -159,12 +186,17 @@ async def update_assessment(assessment_id: UUID, data: AssessmentUpdate):
         logger.error("Failed to update assessment: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e),
+            detail="Internal server error",
         )
 
 
 @router.delete("/{assessment_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_assessment(assessment_id: UUID):
+async def delete_assessment(
+    assessment_id: UUID,
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    _rate_limit=Depends(default_limiter),
+):
     """Soft delete a noise assessment."""
     try:
         async with get_db() as session:
@@ -172,6 +204,7 @@ async def delete_assessment(assessment_id: UUID):
                 select(NoiseAssessment).where(
                     NoiseAssessment.id == assessment_id,
                     NoiseAssessment._is_deleted == False,  # noqa: E712
+                    NoiseAssessment.tenant_id == tenant.id,
                 )
             )
             assessment = result.scalar_one_or_none()
@@ -191,12 +224,16 @@ async def delete_assessment(assessment_id: UUID):
         logger.error("Failed to delete assessment: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e),
+            detail="Internal server error",
         )
 
 
 @router.post("/calculate", response_model=CalculationResponse)
-async def calculate_exposure(request: CalculationRequest):
+async def calculate_exposure(
+    request: CalculationRequest,
+    current_user: User = Depends(get_current_user),
+    _rate_limit=Depends(default_limiter),
+):
     """Calculate noise exposure for an assessment."""
     exposures = [
         PhaseExposure(

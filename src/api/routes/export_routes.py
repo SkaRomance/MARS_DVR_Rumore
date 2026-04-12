@@ -1,14 +1,19 @@
 """Export API routes for DVR document generation."""
 
 import logging
+import nh3
 from datetime import datetime
 from uuid import UUID
 from typing import Any
 
 from io import BytesIO
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.responses import Response, StreamingResponse
+from src.infrastructure.auth.dependencies import get_current_user, get_current_tenant
+from src.infrastructure.database.models.user import User
+from src.infrastructure.database.models.tenant import Tenant
+from src.infrastructure.middleware.rate_limiter import export_limiter
 
 from src.api.schemas.export import (
     ExportRequest,
@@ -16,6 +21,9 @@ from src.api.schemas.export import (
     ExportPreviewResponse,
     ExportFormat,
     DVRDocument,
+    SectionUpdateRequest,
+    TemplateUpdateRequest,
+    PrintSettingsUpdateRequest,
 )
 from src.bootstrap.database import get_db
 from src.domain.services.docx_generator import DOCXGenerator
@@ -33,6 +41,9 @@ router = APIRouter(prefix="/export", tags=["Export"])
 async def export_assessment_json(
     assessment_id: UUID,
     request: ExportRequest,
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    _rate_limit=Depends(export_limiter),
 ):
     """Export assessment as JSON document."""
     from sqlalchemy import select
@@ -44,11 +55,19 @@ async def export_assessment_json(
     try:
         async with get_db() as session:
             result = await session.execute(
-                select(NoiseAssessment).where(NoiseAssessment.id == assessment_id)
+                select(NoiseAssessment)
+                .where(NoiseAssessment.id == assessment_id)
+                .where(NoiseAssessment.tenant_id == tenant.id)
             )
             assessment = result.scalar_one_or_none()
 
             if not assessment:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Assessment {assessment_id} not found",
+                )
+
+            if assessment.tenant_id != tenant.id:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Assessment {assessment_id} not found",
@@ -103,7 +122,7 @@ async def export_assessment_json(
         logger.error("JSON export failed for assessment %s: %s", assessment_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"JSON export failed: {str(e)}",
+            detail="JSON export failed",
         )
 
 
@@ -113,6 +132,9 @@ async def export_assessment_json(
 async def export_assessment_docx(
     assessment_id: UUID,
     request: ExportRequest,
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    _rate_limit=Depends(export_limiter),
 ):
     """Export assessment as DOCX document."""
     from sqlalchemy import select
@@ -129,7 +151,9 @@ async def export_assessment_docx(
     try:
         async with get_db() as session:
             result = await session.execute(
-                select(NoiseAssessment).where(NoiseAssessment.id == assessment_id)
+                select(NoiseAssessment)
+                .where(NoiseAssessment.id == assessment_id)
+                .where(NoiseAssessment.tenant_id == tenant.id)
             )
             assessment = result.scalar_one_or_none()
 
@@ -139,15 +163,23 @@ async def export_assessment_docx(
                     detail=f"Assessment {assessment_id} not found",
                 )
 
+            if assessment.tenant_id != tenant.id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Assessment {assessment_id} not found",
+                )
+
             company_result = await session.execute(
-                select(Company).where(Company.id == assessment.company_id)
+                select(Company)
+                .where(Company.id == assessment.company_id)
+                .where(Company.tenant_id == tenant.id)
             )
             company = company_result.scalar_one_or_none()
 
             print_settings_result = await session.execute(
-                select(PrintSettings).where(
-                    PrintSettings.company_id == assessment.company_id
-                )
+                select(PrintSettings)
+                .where(PrintSettings.company_id == assessment.company_id)
+                .where(PrintSettings.tenant_id == tenant.id)
             )
             print_settings_record = print_settings_result.scalar_one_or_none()
 
@@ -219,6 +251,7 @@ async def export_assessment_docx(
             latest_doc_result = await session.execute(
                 select(AssessmentDocument)
                 .where(AssessmentDocument.assessment_id == assessment_id)
+                .where(AssessmentDocument.tenant_id == tenant.id)
                 .order_by(AssessmentDocument.version.desc())
                 .limit(1)
             )
@@ -253,7 +286,7 @@ async def export_assessment_docx(
         logger.error("DOCX export failed for assessment %s: %s", assessment_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"DOCX export failed: {str(e)}",
+            detail="DOCX export failed",
         )
 
 
@@ -263,6 +296,9 @@ async def export_assessment_docx(
 )
 async def get_export_preview(
     assessment_id: UUID,
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    _rate_limit=Depends(export_limiter),
 ):
     """Get export preview without generating full document."""
     from sqlalchemy import select
@@ -277,11 +313,19 @@ async def get_export_preview(
     try:
         async with get_db() as session:
             result = await session.execute(
-                select(NoiseAssessment).where(NoiseAssessment.id == assessment_id)
+                select(NoiseAssessment)
+                .where(NoiseAssessment.id == assessment_id)
+                .where(NoiseAssessment.tenant_id == tenant.id)
             )
             assessment = result.scalar_one_or_none()
 
             if not assessment:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Assessment {assessment_id} not found",
+                )
+
+            if assessment.tenant_id != tenant.id:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Assessment {assessment_id} not found",
@@ -297,6 +341,7 @@ async def get_export_preview(
             doc_result = await session.execute(
                 select(AssessmentDocument)
                 .where(AssessmentDocument.assessment_id == assessment_id)
+                .where(AssessmentDocument.tenant_id == tenant.id)
                 .order_by(AssessmentDocument.version.desc())
                 .limit(1)
             )
@@ -344,7 +389,7 @@ async def get_export_preview(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Preview generation failed: {str(e)}",
+            detail="Preview generation failed",
         )
 
 
@@ -354,6 +399,9 @@ async def get_export_preview(
 )
 async def get_dvr_document(
     assessment_id: UUID,
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    _rate_limit=Depends(export_limiter),
 ):
     """Get full DVR document content."""
     from sqlalchemy import select
@@ -369,7 +417,9 @@ async def get_dvr_document(
     try:
         async with get_db() as session:
             result = await session.execute(
-                select(NoiseAssessment).where(NoiseAssessment.id == assessment_id)
+                select(NoiseAssessment)
+                .where(NoiseAssessment.id == assessment_id)
+                .where(NoiseAssessment.tenant_id == tenant.id)
             )
             assessment = result.scalar_one_or_none()
 
@@ -379,16 +429,25 @@ async def get_dvr_document(
                     detail=f"Assessment {assessment_id} not found",
                 )
 
+            if assessment.tenant_id != tenant.id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Assessment {assessment_id} not found",
+                )
+
             doc_result = await session.execute(
                 select(AssessmentDocument)
                 .where(AssessmentDocument.assessment_id == assessment_id)
+                .where(AssessmentDocument.tenant_id == tenant.id)
                 .order_by(AssessmentDocument.version.desc())
                 .limit(1)
             )
             latest_doc = doc_result.scalar_one_or_none()
 
             company_result = await session.execute(
-                select(Company).where(Company.id == assessment.company_id)
+                select(Company)
+                .where(Company.id == assessment.company_id)
+                .where(Company.tenant_id == tenant.id)
             )
             company = company_result.scalar_one_or_none()
 
@@ -490,7 +549,7 @@ async def get_dvr_document(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get DVR document: {str(e)}",
+            detail="Failed to get DVR document",
         )
 
 
@@ -499,6 +558,9 @@ async def get_dvr_document(
 )
 async def list_document_sections(
     assessment_id: UUID,
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    _rate_limit=Depends(export_limiter),
 ):
     """List all sections with their current content."""
     from sqlalchemy import select
@@ -510,7 +572,9 @@ async def list_document_sections(
     try:
         async with get_db() as session:
             result = await session.execute(
-                select(NoiseAssessment).where(NoiseAssessment.id == assessment_id)
+                select(NoiseAssessment)
+                .where(NoiseAssessment.id == assessment_id)
+                .where(NoiseAssessment.tenant_id == tenant.id)
             )
             assessment = result.scalar_one_or_none()
 
@@ -520,9 +584,16 @@ async def list_document_sections(
                     detail=f"Assessment {assessment_id} not found",
                 )
 
+            if assessment.tenant_id != tenant.id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Assessment {assessment_id} not found",
+                )
+
             doc_result = await session.execute(
                 select(AssessmentDocument)
                 .where(AssessmentDocument.assessment_id == assessment_id)
+                .where(AssessmentDocument.tenant_id == tenant.id)
                 .order_by(AssessmentDocument.version.desc())
                 .limit(1)
             )
@@ -567,7 +638,7 @@ async def list_document_sections(
         logger.error("Failed to list sections for assessment %s: %s", assessment_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list sections: {str(e)}",
+            detail="Failed to list sections",
         )
 
 
@@ -577,6 +648,9 @@ async def list_document_sections(
 async def get_document_section(
     assessment_id: UUID,
     section_id: str,
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    _rate_limit=Depends(export_limiter),
 ):
     """Get single section content."""
     from sqlalchemy import select
@@ -588,7 +662,9 @@ async def get_document_section(
     try:
         async with get_db() as session:
             result = await session.execute(
-                select(NoiseAssessment).where(NoiseAssessment.id == assessment_id)
+                select(NoiseAssessment)
+                .where(NoiseAssessment.id == assessment_id)
+                .where(NoiseAssessment.tenant_id == tenant.id)
             )
             assessment = result.scalar_one_or_none()
 
@@ -598,9 +674,16 @@ async def get_document_section(
                     detail=f"Assessment {assessment_id} not found",
                 )
 
+            if assessment.tenant_id != tenant.id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Assessment {assessment_id} not found",
+                )
+
             doc_result = await session.execute(
                 select(AssessmentDocument)
                 .where(AssessmentDocument.assessment_id == assessment_id)
+                .where(AssessmentDocument.tenant_id == tenant.id)
                 .order_by(AssessmentDocument.version.desc())
                 .limit(1)
             )
@@ -648,7 +731,7 @@ async def get_document_section(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get section: {str(e)}",
+            detail="Failed to get section",
         )
 
 
@@ -658,9 +741,11 @@ async def get_document_section(
 async def update_document_section(
     assessment_id: UUID,
     section_id: str,
-    content: dict,
+    data: SectionUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    _rate_limit=Depends(export_limiter),
 ):
-    """Update section content from WYSIWYG editor."""
     from sqlalchemy import select
     from src.infrastructure.database.models.noise_assessment import NoiseAssessment
     from src.infrastructure.database.models.assessment_document import (
@@ -670,11 +755,19 @@ async def update_document_section(
     try:
         async with get_db() as session:
             result = await session.execute(
-                select(NoiseAssessment).where(NoiseAssessment.id == assessment_id)
+                select(NoiseAssessment)
+                .where(NoiseAssessment.id == assessment_id)
+                .where(NoiseAssessment.tenant_id == tenant.id)
             )
             assessment = result.scalar_one_or_none()
 
             if not assessment:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Assessment {assessment_id} not found",
+                )
+
+            if assessment.tenant_id != tenant.id:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Assessment {assessment_id} not found",
@@ -698,6 +791,7 @@ async def update_document_section(
             doc_result = await session.execute(
                 select(AssessmentDocument)
                 .where(AssessmentDocument.assessment_id == assessment_id)
+                .where(AssessmentDocument.tenant_id == tenant.id)
                 .order_by(AssessmentDocument.version.desc())
                 .limit(1)
             )
@@ -710,10 +804,29 @@ async def update_document_section(
                 else {}
             )
 
-            new_content = content.get(
-                "content_html", f"<p>Sezione {section_definitions[section_id]}</p>"
+            sanitized_html = nh3.clean(
+                data.content_html,
+                tags={
+                    "p",
+                    "strong",
+                    "em",
+                    "u",
+                    "h1",
+                    "h2",
+                    "h3",
+                    "ul",
+                    "ol",
+                    "li",
+                    "br",
+                    "span",
+                    "div",
+                    "table",
+                    "tr",
+                    "td",
+                    "th",
+                },
             )
-            content_json[section_id] = new_content
+            content_json[section_id] = sanitized_html
 
             new_document = AssessmentDocument(
                 assessment_id=assessment_id,
@@ -731,7 +844,7 @@ async def update_document_section(
             return {
                 "id": section_id,
                 "title": section_definitions[section_id],
-                "content_html": new_content,
+                "content_html": sanitized_html,
                 "is_modified": True,
                 "version": new_version,
             }
@@ -747,12 +860,16 @@ async def update_document_section(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update section: {str(e)}",
+            detail="Failed to update section",
         )
 
 
 @router.get("/templates")
-async def list_templates():
+async def list_templates(
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    _rate_limit=Depends(export_limiter),
+):
     """List all document templates."""
     from sqlalchemy import select
     from src.infrastructure.database.models.document_template import DocumentTemplate
@@ -760,7 +877,9 @@ async def list_templates():
     try:
         async with get_db() as session:
             result = await session.execute(
-                select(DocumentTemplate).where(DocumentTemplate.is_active == True)
+                select(DocumentTemplate)
+                .where(DocumentTemplate.is_active == True)
+                .where(DocumentTemplate.tenant_id == tenant.id)
             )
             templates = result.scalars().all()
 
@@ -782,13 +901,16 @@ async def list_templates():
         logger.error("Failed to list templates: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list templates: {str(e)}",
+            detail="Failed to list templates",
         )
 
 
 @router.get("/templates/{template_id}")
 async def get_template(
     template_id: UUID,
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    _rate_limit=Depends(export_limiter),
 ):
     """Get single template detail."""
     from sqlalchemy import select
@@ -797,7 +919,9 @@ async def get_template(
     try:
         async with get_db() as session:
             result = await session.execute(
-                select(DocumentTemplate).where(DocumentTemplate.id == template_id)
+                select(DocumentTemplate)
+                .where(DocumentTemplate.id == template_id)
+                .where(DocumentTemplate.tenant_id == tenant.id)
             )
             template = result.scalar_one_or_none()
 
@@ -832,23 +956,27 @@ async def get_template(
         logger.error("Failed to get template %s: %s", template_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get template: {str(e)}",
+            detail="Failed to get template",
         )
 
 
 @router.put("/templates/{template_id}")
 async def update_template(
     template_id: UUID,
-    template_data: dict,
+    template_data: TemplateUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    _rate_limit=Depends(export_limiter),
 ):
-    """Override template content from DB."""
     from sqlalchemy import select, update
     from src.infrastructure.database.models.document_template import DocumentTemplate
 
     try:
         async with get_db() as session:
             result = await session.execute(
-                select(DocumentTemplate).where(DocumentTemplate.id == template_id)
+                select(DocumentTemplate)
+                .where(DocumentTemplate.id == template_id)
+                .where(DocumentTemplate.tenant_id == tenant.id)
             )
             template = result.scalar_one_or_none()
 
@@ -858,14 +986,35 @@ async def update_template(
                     detail=f"Template {template_id} not found",
                 )
 
-            if "content" in template_data:
-                template.content = template_data["content"]
-            if "name" in template_data:
-                template.name = template_data["name"]
-            if "description" in template_data:
-                template.description = template_data["description"]
-            if "variables" in template_data:
-                template.variables = template_data["variables"]
+            if template_data.content is not None:
+                template.content = nh3.clean(
+                    template_data.content,
+                    tags={
+                        "p",
+                        "strong",
+                        "em",
+                        "u",
+                        "h1",
+                        "h2",
+                        "h3",
+                        "ul",
+                        "ol",
+                        "li",
+                        "br",
+                        "span",
+                        "div",
+                        "table",
+                        "tr",
+                        "td",
+                        "th",
+                    },
+                )
+            if template_data.name is not None:
+                template.name = template_data.name
+            if template_data.description is not None:
+                template.description = template_data.description
+            if template_data.variables is not None:
+                template.variables = template_data.variables
 
             template.version = template.version + 1
             await session.commit()
@@ -888,13 +1037,16 @@ async def update_template(
         logger.error("Failed to update template %s: %s", template_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update template: {str(e)}",
+            detail="Failed to update template",
         )
 
 
 @router.get("/print-settings")
 async def get_print_settings(
     company_id: UUID | None = None,
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    _rate_limit=Depends(export_limiter),
 ):
     """Get current user/company print settings."""
     from sqlalchemy import select
@@ -918,7 +1070,9 @@ async def get_print_settings(
 
         async with get_db() as session:
             result = await session.execute(
-                select(PrintSettings).where(PrintSettings.company_id == company_id)
+                select(PrintSettings)
+                .where(PrintSettings.company_id == company_id)
+                .where(PrintSettings.tenant_id == tenant.id)
             )
             settings = result.scalar_one_or_none()
 
@@ -955,73 +1109,78 @@ async def get_print_settings(
         logger.error("Failed to get print settings: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get print settings: {str(e)}",
+            detail="Failed to get print settings",
         )
 
 
 @router.put("/print-settings")
 async def save_print_settings(
-    settings_data: dict,
+    settings_data: PrintSettingsUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    _rate_limit=Depends(export_limiter),
 ):
-    """Save print settings."""
     from sqlalchemy import select
     from src.infrastructure.database.models.print_settings import PrintSettings
 
     try:
-        company_id = UUID(settings_data.get("company_id", ""))
         async with get_db() as session:
             result = await session.execute(
-                select(PrintSettings).where(PrintSettings.company_id == company_id)
+                select(PrintSettings)
+                .where(PrintSettings.company_id == settings_data.company_id)
+                .where(PrintSettings.tenant_id == tenant.id)
             )
             settings = result.scalar_one_or_none()
 
             if settings:
-                if "header_text" in settings_data:
-                    settings.header_text = settings_data["header_text"]
-                if "footer_text" in settings_data:
-                    settings.footer_text = settings_data["footer_text"]
-                if "cover_title" in settings_data:
-                    settings.cover_title = settings_data["cover_title"]
-                if "cover_subtitle" in settings_data:
-                    settings.cover_subtitle = settings_data["cover_subtitle"]
-                if "logo_url" in settings_data:
-                    settings.logo_url = settings_data["logo_url"]
-                if "primary_color" in settings_data:
-                    settings.primary_color = settings_data["primary_color"]
-                if "secondary_color" in settings_data:
-                    settings.secondary_color = settings_data["secondary_color"]
-                if "font_family" in settings_data:
-                    settings.font_family = settings_data["font_family"]
-                if "font_size" in settings_data:
-                    settings.font_size = settings_data["font_size"]
-                if "paper_size" in settings_data:
-                    settings.paper_size = settings_data["paper_size"]
-                if "margins" in settings_data:
-                    settings.margins = settings_data["margins"]
+                if settings_data.header_text is not None:
+                    settings.header_text = nh3.clean_text(settings_data.header_text)
+                if settings_data.footer_text is not None:
+                    settings.footer_text = nh3.clean_text(settings_data.footer_text)
+                if settings_data.cover_title is not None:
+                    settings.cover_title = nh3.clean_text(settings_data.cover_title)
+                if settings_data.cover_subtitle is not None:
+                    settings.cover_subtitle = nh3.clean_text(
+                        settings_data.cover_subtitle
+                    )
+                if settings_data.logo_url is not None:
+                    settings.logo_url = settings_data.logo_url
+                if settings_data.primary_color is not None:
+                    settings.primary_color = settings_data.primary_color
+                if settings_data.secondary_color is not None:
+                    settings.secondary_color = settings_data.secondary_color
+                if settings_data.font_family is not None:
+                    settings.font_family = settings_data.font_family
+                if settings_data.font_size is not None:
+                    settings.font_size = settings_data.font_size
+                if settings_data.paper_size is not None:
+                    settings.paper_size = settings_data.paper_size
+                if settings_data.margins is not None:
+                    settings.margins = settings_data.margins
 
                 settings.version = settings.version + 1
             else:
                 settings = PrintSettings(
-                    company_id=company_id,
-                    header_text=settings_data.get(
-                        "header_text", "Valutazione Rischio Rumore"
+                    company_id=settings_data.company_id,
+                    tenant_id=tenant.id,
+                    header_text=nh3.clean_text(
+                        settings_data.header_text or "Valutazione Rischio Rumore"
                     ),
-                    footer_text=settings_data.get("footer_text", "MARS DVR"),
-                    cover_title=settings_data.get(
-                        "cover_title", "VALUTAZIONE RISCHIO RUMORE"
+                    footer_text=nh3.clean_text(settings_data.footer_text or "MARS DVR"),
+                    cover_title=nh3.clean_text(
+                        settings_data.cover_title or "VALUTAZIONE RISCHIO RUMORE"
                     ),
-                    cover_subtitle=settings_data.get(
-                        "cover_subtitle", "Documento di Valutazione"
+                    cover_subtitle=nh3.clean_text(
+                        settings_data.cover_subtitle or "Documento di Valutazione"
                     ),
-                    logo_url=settings_data.get("logo_url"),
-                    primary_color=settings_data.get("primary_color", "#1a365d"),
-                    secondary_color=settings_data.get("secondary_color", "#2c5282"),
-                    font_family=settings_data.get("font_family", "Times New Roman"),
-                    font_size=settings_data.get("font_size", 12),
-                    paper_size=settings_data.get("paper_size", "A4"),
-                    margins=settings_data.get(
-                        "margins", {"top": 25, "bottom": 25, "left": 20, "right": 20}
-                    ),
+                    logo_url=settings_data.logo_url,
+                    primary_color=settings_data.primary_color or "#1a365d",
+                    secondary_color=settings_data.secondary_color or "#2c5282",
+                    font_family=settings_data.font_family or "Times New Roman",
+                    font_size=settings_data.font_size or 12,
+                    paper_size=settings_data.paper_size or "A4",
+                    margins=settings_data.margins
+                    or {"top": 25, "bottom": 25, "left": 20, "right": 20},
                 )
                 session.add(settings)
 
@@ -1029,7 +1188,7 @@ async def save_print_settings(
 
             return {
                 "status": "ok",
-                "company_id": str(company_id),
+                "company_id": str(settings_data.company_id),
                 "message": "Print settings saved successfully",
             }
 
@@ -1037,5 +1196,5 @@ async def save_print_settings(
         logger.error("Failed to save print settings: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to save print settings: {str(e)}",
+            detail="Failed to save print settings",
         )

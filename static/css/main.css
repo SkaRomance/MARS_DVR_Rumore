@@ -507,6 +507,90 @@ li {
     }
 }
 
+#login-section {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background-color: var(--color-bg);
+}
+
+.login-container {
+    display: flex;
+    flex-direction: column;
+    max-width: 400px;
+    width: 100%;
+    padding: var(--spacing-xl);
+    background: var(--color-bg-card);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--color-border);
+}
+
+.login-container h2 {
+    text-align: center;
+    margin-bottom: var(--spacing-xl);
+}
+
+.login-container input {
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-family: var(--font-main);
+    font-size: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: white;
+    transition: border-color var(--transition-fast);
+}
+
+.login-container input:focus {
+    outline: none;
+    border-color: var(--color-secondary-light);
+    box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.15);
+}
+
+.login-container button {
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    font-family: var(--font-main);
+    font-size: 1rem;
+    font-weight: 600;
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+}
+
+.login-container button:hover {
+    background-color: var(--color-primary-dark);
+}
+
+.error-text {
+    color: var(--color-danger);
+    font-size: 0.875rem;
+    min-height: 1.25rem;
+    margin-top: var(--spacing-sm);
+}
+
+.user-bar {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm) var(--spacing-lg);
+    background-color: var(--color-bg-card);
+    border-bottom: 1px solid var(--color-border);
+    font-size: 0.875rem;
+    color: var(--color-text-light);
+}
+
+.btn-small {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: 0.8125rem;
+}
+
 @media print {
     .main-nav,
     .toolbar,

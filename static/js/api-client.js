@@ -17,7 +17,7 @@
             };
 
             try {
-                const response = await fetch(url, config);
+                const response = await authService.fetchWithAuth(url, config);
                 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({}));
@@ -62,7 +62,7 @@
         }
 
         async exportJSON(id) {
-            const response = await fetch(`${this.baseURL}/export/assessments/${id}/json`, {
+            const response = await authService.fetchWithAuth(`${this.baseURL}/export/assessments/${id}/json`, {
                 method: 'POST',
                 headers: this.defaultHeaders
             });
@@ -75,7 +75,7 @@
         }
 
         async exportDOCX(id, options = {}) {
-            const response = await fetch(`${this.baseURL}/export/assessments/${id}/docx`, {
+            const response = await authService.fetchWithAuth(`${this.baseURL}/export/assessments/${id}/docx`, {
                 method: 'POST',
                 headers: this.defaultHeaders,
                 body: JSON.stringify(options)

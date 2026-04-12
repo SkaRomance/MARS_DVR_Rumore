@@ -175,7 +175,6 @@ class DVRDocument(BaseModel):
 
 
 class ExportPreviewResponse(BaseModel):
-    """Preview response without full export."""
 
     assessment_id: UUID
     sections_count: int
@@ -198,3 +197,29 @@ class ExportPreviewResponse(BaseModel):
             }
         }
     )
+
+
+class SectionUpdateRequest(BaseModel):
+    content_html: str
+
+
+class TemplateUpdateRequest(BaseModel):
+    content: str | None = None
+    name: str | None = None
+    description: str | None = None
+    variables: dict | None = None
+
+
+class PrintSettingsUpdateRequest(BaseModel):
+    company_id: UUID
+    header_text: str | None = None
+    footer_text: str | None = None
+    cover_title: str | None = None
+    cover_subtitle: str | None = None
+    logo_url: str | None = None
+    primary_color: str | None = None
+    secondary_color: str | None = None
+    font_family: str | None = None
+    font_size: int | None = None
+    paper_size: str | None = None
+    margins: dict | None = None

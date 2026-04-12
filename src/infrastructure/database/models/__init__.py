@@ -18,6 +18,9 @@ from src.infrastructure.database.models.mitigation_measure import MitigationMeas
 from src.infrastructure.database.models.document_template import DocumentTemplate
 from src.infrastructure.database.models.print_settings import PrintSettings
 from src.infrastructure.database.models.assessment_document import AssessmentDocument
+from src.infrastructure.database.models.tenant import Tenant
+from src.infrastructure.database.models.user import User, UserRole
+from src.infrastructure.database.models.audit_log import AuditLog
 
 __all__ = [
     "Company",
@@ -34,4 +37,8 @@ __all__ = [
     "DocumentTemplate",
     "PrintSettings",
     "AssessmentDocument",
+    "Tenant",
+    "User",
+    "UserRole",
+    "AuditLog",
 ]

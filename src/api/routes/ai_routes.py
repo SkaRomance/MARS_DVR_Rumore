@@ -30,6 +30,10 @@ from src.api.schemas.ai import (
 )
 from src.bootstrap.config import get_settings, Settings
 from src.infrastructure.llm import OllamaProvider, MockProvider
+from src.infrastructure.auth.dependencies import get_current_user, get_current_tenant
+from src.infrastructure.database.models.user import User
+from src.infrastructure.database.models.tenant import Tenant
+from src.infrastructure.middleware.rate_limiter import ai_limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -79,6 +83,8 @@ async def ai_bootstrap(
     assessment_id: UUID,
     request: BootstrapRequest,
     settings: Settings = Depends(get_settings),
+    current_user: User = Depends(get_current_user),
+    _rate_limit=Depends(ai_limiter),
 ):
     """AI-guided initial assessment setup.
 
@@ -126,7 +132,7 @@ async def ai_bootstrap(
         logger.error("Bootstrap failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"AI bootstrap failed: {str(e)}",
+            detail="AI bootstrap failed",
         )
 
 
@@ -135,6 +141,8 @@ async def ai_review(
     assessment_id: UUID,
     request: ReviewRequest,
     settings: Settings = Depends(get_settings),
+    current_user: User = Depends(get_current_user),
+    _rate_limit=Depends(ai_limiter),
 ):
     """Review existing assessment data.
 
@@ -183,7 +191,7 @@ async def ai_review(
         logger.error("Review failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"AI review failed: {str(e)}",
+            detail="AI review failed",
         )
 
 
@@ -192,6 +200,8 @@ async def ai_explain(
     assessment_id: UUID,
     request: ExplainRequest,
     settings: Settings = Depends(get_settings),
+    current_user: User = Depends(get_current_user),
+    _rate_limit=Depends(ai_limiter),
 ):
     """Explain calculations, risk decisions, or regulations.
 
@@ -236,7 +246,7 @@ async def ai_explain(
         logger.error("Explain failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"AI explain failed: {str(e)}",
+            detail="AI explain failed",
         )
 
 
@@ -247,6 +257,8 @@ async def ai_generate_narrative(
     assessment_id: UUID,
     request: NarrativeRequest,
     settings: Settings = Depends(get_settings),
+    current_user: User = Depends(get_current_user),
+    _rate_limit=Depends(ai_limiter),
 ):
     """Generate DVR narrative text.
 
@@ -290,7 +302,7 @@ async def ai_generate_narrative(
         logger.error("Narrative generation failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"AI narrative generation failed: {str(e)}",
+            detail="AI narrative generation failed",
         )
 
 
@@ -302,6 +314,8 @@ async def ai_suggest_mitigations(
     assessment_id: UUID,
     request: MitigationRequest,
     settings: Settings = Depends(get_settings),
+    current_user: User = Depends(get_current_user),
+    _rate_limit=Depends(ai_limiter),
 ):
     """Suggest risk mitigation measures.
 
@@ -349,7 +363,7 @@ async def ai_suggest_mitigations(
         logger.error("Mitigation suggestion failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"AI mitigation suggestion failed: {str(e)}",
+            detail="AI mitigation suggestion failed",
         )
 
 
@@ -361,6 +375,8 @@ async def ai_detect_sources(
     assessment_id: UUID,
     request: SourceDetectionRequest,
     settings: Settings = Depends(get_settings),
+    current_user: User = Depends(get_current_user),
+    _rate_limit=Depends(ai_limiter),
 ):
     """Detect noise sources from free-text description.
 
@@ -398,7 +414,7 @@ async def ai_detect_sources(
         logger.error("Source detection failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Source detection failed: {str(e)}",
+            detail="Source detection failed",
         )
 
 
@@ -409,6 +425,9 @@ async def ai_detect_sources(
 async def get_suggestions(
     assessment_id: UUID,
     status_filter: SuggestionStatus | None = None,
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    _rate_limit=Depends(ai_limiter),
 ):
     """Get AI suggestions for an assessment."""
     from sqlalchemy import select
@@ -419,7 +438,8 @@ async def get_suggestions(
         session = get_db()
         async with session:
             query = select(AISuggestion).where(
-                AISuggestion.assessment_id == assessment_id
+                AISuggestion.assessment_id == assessment_id,
+                AISuggestion.tenant_id == tenant.id,
             )
             if status_filter:
                 query = query.where(AISuggestion.status == status_filter.value)
@@ -444,7 +464,7 @@ async def get_suggestions(
         logger.error("Get suggestions failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get suggestions: {str(e)}",
+            detail="Failed to get suggestions",
         )
 
 
@@ -453,6 +473,9 @@ async def suggestion_action(
     assessment_id: UUID,
     suggestion_id: UUID,
     request: SuggestionActionRequest,
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    _rate_limit=Depends(ai_limiter),
 ):
     """Approve or reject an AI suggestion."""
     from datetime import datetime
@@ -467,7 +490,10 @@ async def suggestion_action(
         session = get_db()
         async with session:
             result = await session.execute(
-                select(AISuggestion).where(AISuggestion.id == suggestion_id)
+                select(AISuggestion).where(
+                    AISuggestion.id == suggestion_id,
+                    AISuggestion.tenant_id == tenant.id,
+                )
             )
             suggestion = result.scalar_one_or_none()
 
@@ -494,7 +520,7 @@ async def suggestion_action(
         logger.error("Suggestion action failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to process suggestion action: {str(e)}",
+            detail="Failed to process suggestion action",
         )
 
 
@@ -504,6 +530,9 @@ async def suggestion_action(
 )
 async def get_interactions(
     assessment_id: UUID,
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    _rate_limit=Depends(ai_limiter),
 ):
     """Get AI interaction history for an assessment."""
     from sqlalchemy import select
@@ -515,7 +544,10 @@ async def get_interactions(
         async with session:
             result = await session.execute(
                 select(AIInteraction)
-                .where(AIInteraction.assessment_id == assessment_id)
+                .where(
+                    AIInteraction.assessment_id == assessment_id,
+                    AIInteraction.tenant_id == tenant.id,
+                )
                 .order_by(AIInteraction.created_at.desc())
                 .limit(100)
             )
@@ -538,5 +570,5 @@ async def get_interactions(
         logger.error("Get interactions failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get interactions: {str(e)}",
+            detail="Failed to get interactions",
         )

@@ -32,6 +32,9 @@ class NarrativeTemplate(Base):
         primary_key=True,
         default=uuid.uuid4,
     )
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
 
     # Identification
     template_key: Mapped[str] = mapped_column(

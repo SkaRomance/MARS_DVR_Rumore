@@ -351,7 +351,31 @@
 
     window.App = App;
 
-    document.addEventListener('DOMContentLoaded', () => {
-        window.app = new App();
+    window.initializeApp = function() {
+        if (!window.app) {
+            window.app = new App();
+        }
+    };
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        const loginForm = document.getElementById('login-form');
+        if (loginForm) {
+            loginForm.addEventListener('submit', handleLogin);
+        }
+        const logoutBtn = document.getElementById('logout-btn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => {
+                authService.logout();
+            });
+        }
+
+        if (authService.isAuthenticated()) {
+            const user = await authService.fetchCurrentUser();
+            if (user) {
+                window.initializeApp();
+            }
+        } else {
+            showLoginSection();
+        }
     });
 })();
