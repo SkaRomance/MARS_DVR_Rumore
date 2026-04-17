@@ -4,8 +4,8 @@ Usage:
     python -m src.cli.index_paf_library [--reset] [--stats]
 """
 
-import asyncio
 import argparse
+import asyncio
 import logging
 import sys
 
@@ -55,9 +55,7 @@ def show_stats():
 
 def main():
     parser = argparse.ArgumentParser(description="Index PAF library into ChromaDB")
-    parser.add_argument(
-        "--reset", action="store_true", help="Reset collection before indexing"
-    )
+    parser.add_argument("--reset", action="store_true", help="Reset collection before indexing")
     parser.add_argument("--stats", action="store_true", help="Show collection stats")
     args = parser.parse_args()
 

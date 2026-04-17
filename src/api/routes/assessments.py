@@ -1,11 +1,10 @@
 """Assessments API route."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
-from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,28 +17,30 @@ from src.api.schemas.assessment import (
 )
 from src.bootstrap.database import get_db
 from src.domain.services.noise_calculation import (
-    calculate_lex_8h,
-    PhaseExposure,
     ExposureOrigin,
+    PhaseExposure,
+    calculate_lex_8h,
 )
-from src.infrastructure.database.models.noise_assessment import NoiseAssessment
+from src.infrastructure.auth.dependencies import (
+    get_current_tenant,
+    get_current_user,
+    require_license,
+)
 from src.infrastructure.database.enums import EntityStatus
-from src.infrastructure.auth.dependencies import get_current_user, get_current_tenant
-from src.infrastructure.database.models.user import User
+from src.infrastructure.database.models.noise_assessment import NoiseAssessment
 from src.infrastructure.database.models.tenant import Tenant
+from src.infrastructure.database.models.user import User
 from src.infrastructure.middleware.rate_limiter import default_limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.post(
-    "/", response_model=AssessmentResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("/", response_model=AssessmentResponse, status_code=status.HTTP_201_CREATED)
 async def create_assessment(
     data: AssessmentCreate,
     current_user: User = Depends(get_current_user),
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(require_license),
     db: AsyncSession = Depends(get_db),
     _rate_limit=Depends(default_limiter),
 ):
@@ -50,7 +51,7 @@ async def create_assessment(
             description=data.description,
             status=EntityStatus.active.value,
             version=1,
-            assessment_date=datetime.now(timezone.utc),
+            assessment_date=datetime.now(UTC),
             tenant_id=tenant.id,
         )
         db.add(assessment)
@@ -71,7 +72,7 @@ async def create_assessment(
 async def list_assessments(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
-    status_filter: Optional[str] = Query(default=None, alias="status"),
+    status_filter: str | None = Query(default=None, alias="status"),
     current_user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
     db: AsyncSession = Depends(get_db),

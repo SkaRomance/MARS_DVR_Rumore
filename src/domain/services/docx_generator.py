@@ -1,15 +1,14 @@
 """DOCX generation service for DVR noise assessments."""
 
-from docx import Document
-from docx.shared import Inches, Pt, RGBColor, Cm
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
-from docx.enum.table import WD_TABLE_ALIGNMENT
-from docx.oxml.ns import qn
-from docx.oxml import OxmlElement
+import io
 from datetime import datetime
 from uuid import UUID
-from typing import Any
-import io
+
+from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import Cm, Inches, Pt, RGBColor
 
 
 class DOCXGenerator:
@@ -116,9 +115,7 @@ class DOCXGenerator:
         ateco_para = document.add_paragraph(f"Codice ATECO: {ateco_code}")
         ateco_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-        date_para = document.add_paragraph(
-            f"Data Valutazione: {assessment_date.strftime('%d/%m/%Y')}"
-        )
+        date_para = document.add_paragraph(f"Data Valutazione: {assessment_date.strftime('%d/%m/%Y')}")
         date_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
         self._apply_header_footer(
@@ -296,9 +293,7 @@ class DOCXGenerator:
                     item = self.stack.pop()
                     text = "".join(self.current_para)
                     if text.strip() or self.current_runs:
-                        heading = self.generator._add_heading(
-                            self.document, text, level=item["level"]
-                        )
+                        heading = self.generator._add_heading(self.document, text, level=item["level"])
                         for run_data in self.current_runs:
                             run = heading.add_run(run_data["text"])
                             run.font.name = self.generator.default_font
@@ -386,9 +381,7 @@ class DOCXGenerator:
             self._add_paragraph(document, html_content)
 
         if parser.in_table and parser.table_rows:
-            table = document.add_table(
-                rows=1, cols=len(parser.table_rows[0]) if parser.table_rows else 0
-            )
+            table = document.add_table(rows=1, cols=len(parser.table_rows[0]) if parser.table_rows else 0)
             table.style = "Table Grid"
             if parser.table_rows:
                 hdr_cells = table.rows[0].cells

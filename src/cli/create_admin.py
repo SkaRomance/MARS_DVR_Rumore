@@ -1,21 +1,17 @@
 import asyncio
 import uuid
-import sys
 from getpass import getpass
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bootstrap.database import (
-    get_engine,
+    dispose_engine,
     get_session_factory,
     init_db,
-    dispose_engine,
 )
-from src.bootstrap.config import get_settings
+from src.infrastructure.auth.password import get_password_hash
 from src.infrastructure.database.models.tenant import Tenant
 from src.infrastructure.database.models.user import User
-from src.infrastructure.auth.password import get_password_hash
 
 
 async def create_admin(name: str, slug: str, email: str, password: str):
@@ -61,7 +57,7 @@ async def create_admin(name: str, slug: str, email: str, password: str):
             await session.flush()
             print(f"Created admin user '{email}' with id={user.id}")
             print(f"Tenant: {tenant.name} ({tenant.slug})")
-            print(f"Role: admin")
+            print("Role: admin")
             print(f"License: {tenant.license_status}")
 
         await session.commit()
@@ -76,9 +72,7 @@ def main():
     parser.add_argument("--name", required=True, help="Tenant and user name")
     parser.add_argument("--slug", required=True, help="Tenant slug (unique identifier)")
     parser.add_argument("--email", required=True, help="Admin user email")
-    parser.add_argument(
-        "--password", default=None, help="Admin password (will prompt if not provided)"
-    )
+    parser.add_argument("--password", default=None, help="Admin password (will prompt if not provided)")
 
     args = parser.parse_args()
 

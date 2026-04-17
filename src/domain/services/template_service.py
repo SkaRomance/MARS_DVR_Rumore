@@ -1,10 +1,9 @@
 """Template and print settings management service."""
 
+import json
 import logging
 from pathlib import Path
-from typing import Any
 from uuid import UUID
-import json
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +33,7 @@ class TemplateService:
         template_path = self._templates_dir / f"{template_key}.json"
         if template_path.exists():
             try:
-                with open(template_path, "r", encoding="utf-8") as f:
+                with open(template_path, encoding="utf-8") as f:
                     template_data = json.load(f)
                     self._templates_cache[template_key] = template_data
                     return template_data
@@ -88,7 +87,7 @@ class TemplateService:
         settings_path = self._templates_dir / "print_settings" / f"{cache_key}.json"
         if settings_path.exists():
             try:
-                with open(settings_path, "r", encoding="utf-8") as f:
+                with open(settings_path, encoding="utf-8") as f:
                     settings = json.load(f)
                     self._print_settings_cache[cache_key] = settings
                     return settings
@@ -120,9 +119,7 @@ class TemplateService:
             logger.error("Failed to save print settings for %s: %s", company_id, e)
             raise
 
-    async def get_document_template(
-        self, template_key: str, language: str = "it"
-    ) -> dict:
+    async def get_document_template(self, template_key: str, language: str = "it") -> dict:
         """Get document template with language fallback.
 
         Args:

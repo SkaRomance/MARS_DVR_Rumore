@@ -43,11 +43,7 @@ class KeygenClient:
                 "data": {
                     "type": "machines",
                     "attributes": {"fingerprint": fingerprint},
-                    "relationships": {
-                        "license": {
-                            "data": {"type": "licenses", "id": license_id}
-                        }
-                    },
+                    "relationships": {"license": {"data": {"type": "licenses", "id": license_id}}},
                 }
             }
             resp = await client.post(
@@ -90,9 +86,7 @@ class KeygenClient:
     async def checkout_license(self, license_id: str, metadata: dict) -> dict | None:
         client = await self._get_client()
         try:
-            payload = {
-                "meta": {"metadata": metadata}
-            }
+            payload = {"meta": {"metadata": metadata}}
             resp = await client.post(
                 f"{self.api_url}/accounts/{self.account_id}/licenses/{license_id}/actions/check-out",
                 headers=self._headers(),

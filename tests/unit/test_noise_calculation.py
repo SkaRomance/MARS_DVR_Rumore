@@ -1,19 +1,18 @@
 """Comprehensive tests for Phase 2 - Calculation Core."""
 
 import pytest
+
 from src.domain.services.noise_calculation import (
-    calculate_lex_8h,
-    calculate_lex_weekly,
+    ExposureOrigin,
+    PhaseExposure,
+    SensitiveWorkerFactors,
+    calculate_k_background,
     calculate_k_impulse,
     calculate_k_tone,
-    calculate_k_background,
-    calculate_k_corrections,
+    calculate_lex_8h,
+    calculate_lex_weekly,
     calculate_sensitive_adjustment,
-    SensitiveWorkerFactors,
-    PhaseExposure,
-    ExposureOrigin,
     classify_risk_band,
-    RISK_BANDS,
 )
 
 
@@ -23,15 +22,9 @@ class TestNoiseCalculation:
     def test_lex_8h_metalmeccanico(self):
         """Test caso positivo: metalmeccanico with 3 phases."""
         exposures = [
-            PhaseExposure(
-                laeq_db_a=85, duration_hours=4.0, origin=ExposureOrigin.MEASURED
-            ),
-            PhaseExposure(
-                laeq_db_a=90, duration_hours=2.0, origin=ExposureOrigin.CALCULATED
-            ),
-            PhaseExposure(
-                laeq_db_a=60, duration_hours=2.0, origin=ExposureOrigin.MEASURED
-            ),
+            PhaseExposure(laeq_db_a=85, duration_hours=4.0, origin=ExposureOrigin.MEASURED),
+            PhaseExposure(laeq_db_a=90, duration_hours=2.0, origin=ExposureOrigin.CALCULATED),
+            PhaseExposure(laeq_db_a=60, duration_hours=2.0, origin=ExposureOrigin.MEASURED),
         ]
         result = calculate_lex_8h(exposures)
 
@@ -47,12 +40,8 @@ class TestNoiseCalculation:
                 origin=ExposureOrigin.MEASURED,
                 lcpeak_db_c=138,
             ),
-            PhaseExposure(
-                laeq_db_a=95, duration_hours=3.0, origin=ExposureOrigin.MEASURED
-            ),
-            PhaseExposure(
-                laeq_db_a=70, duration_hours=3.0, origin=ExposureOrigin.MEASURED
-            ),
+            PhaseExposure(laeq_db_a=95, duration_hours=3.0, origin=ExposureOrigin.MEASURED),
+            PhaseExposure(laeq_db_a=70, duration_hours=3.0, origin=ExposureOrigin.MEASURED),
         ]
         result = calculate_lex_8h(exposures)
 
@@ -63,9 +52,7 @@ class TestNoiseCalculation:
     def test_lex_8h_single_exposure_8h(self):
         """Test edge case: single 8-hour exposure at 80 dB(A)."""
         exposures = [
-            PhaseExposure(
-                laeq_db_a=80, duration_hours=8.0, origin=ExposureOrigin.MEASURED
-            ),
+            PhaseExposure(laeq_db_a=80, duration_hours=8.0, origin=ExposureOrigin.MEASURED),
         ]
         result = calculate_lex_8h(exposures)
 
@@ -209,9 +196,7 @@ class TestSensitiveWorkers:
 
     def test_multiple_factors(self):
         """Multiple factors accumulate."""
-        factors = SensitiveWorkerFactors(
-            is_pregnant=True, is_ototoxic_exposed=True, is_vibration_exposed=True
-        )
+        factors = SensitiveWorkerFactors(is_pregnant=True, is_ototoxic_exposed=True, is_vibration_exposed=True)
         # 3 + 3 + 2 = 8
         assert calculate_sensitive_adjustment(factors) == 8.0
 
@@ -222,15 +207,9 @@ class TestUncertainty:
     def test_uncertainty_all_measured(self):
         """Test uncertainty with all measured data."""
         exposures = [
-            PhaseExposure(
-                laeq_db_a=85, duration_hours=4.0, origin=ExposureOrigin.MEASURED
-            ),
-            PhaseExposure(
-                laeq_db_a=90, duration_hours=2.0, origin=ExposureOrigin.MEASURED
-            ),
-            PhaseExposure(
-                laeq_db_a=60, duration_hours=2.0, origin=ExposureOrigin.MEASURED
-            ),
+            PhaseExposure(laeq_db_a=85, duration_hours=4.0, origin=ExposureOrigin.MEASURED),
+            PhaseExposure(laeq_db_a=90, duration_hours=2.0, origin=ExposureOrigin.MEASURED),
+            PhaseExposure(laeq_db_a=60, duration_hours=2.0, origin=ExposureOrigin.MEASURED),
         ]
         result = calculate_lex_8h(exposures)
 
@@ -240,12 +219,8 @@ class TestUncertainty:
     def test_uncertainty_all_estimated(self):
         """Higher uncertainty with estimated data."""
         exposures = [
-            PhaseExposure(
-                laeq_db_a=85, duration_hours=4.0, origin=ExposureOrigin.ESTIMATED
-            ),
-            PhaseExposure(
-                laeq_db_a=90, duration_hours=2.0, origin=ExposureOrigin.ESTIMATED
-            ),
+            PhaseExposure(laeq_db_a=85, duration_hours=4.0, origin=ExposureOrigin.ESTIMATED),
+            PhaseExposure(laeq_db_a=90, duration_hours=2.0, origin=ExposureOrigin.ESTIMATED),
         ]
         result = calculate_lex_8h(exposures)
 
@@ -258,9 +233,7 @@ class TestUncertainty:
     def test_confidence_all_measured(self):
         """Test confidence score with all measured data."""
         exposures = [
-            PhaseExposure(
-                laeq_db_a=85, duration_hours=4.0, origin=ExposureOrigin.MEASURED
-            ),
+            PhaseExposure(laeq_db_a=85, duration_hours=4.0, origin=ExposureOrigin.MEASURED),
         ]
         result = calculate_lex_8h(exposures)
 
@@ -269,12 +242,8 @@ class TestUncertainty:
     def test_confidence_mixed(self):
         """Test confidence with mixed origins."""
         exposures = [
-            PhaseExposure(
-                laeq_db_a=85, duration_hours=4.0, origin=ExposureOrigin.MEASURED
-            ),
-            PhaseExposure(
-                laeq_db_a=90, duration_hours=2.0, origin=ExposureOrigin.ESTIMATED
-            ),
+            PhaseExposure(laeq_db_a=85, duration_hours=4.0, origin=ExposureOrigin.MEASURED),
+            PhaseExposure(laeq_db_a=90, duration_hours=2.0, origin=ExposureOrigin.ESTIMATED),
         ]
         result = calculate_lex_8h(exposures)
 

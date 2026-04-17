@@ -1,6 +1,5 @@
 """Mock LLM provider for testing without real API calls."""
 
-import json
 from src.infrastructure.llm.base import LLMProvider, LLMRequest, LLMResponse
 
 

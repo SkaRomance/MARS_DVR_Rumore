@@ -1,9 +1,9 @@
 """Noise exposure calculation service - ISO 9612 implementation."""
 
-import numpy as np
 from dataclasses import dataclass
-from typing import Optional
 from enum import Enum
+
+import numpy as np
 
 
 class ExposureOrigin(Enum):
@@ -25,8 +25,8 @@ class PhaseExposure:
     laeq_db_a: float
     duration_hours: float
     origin: ExposureOrigin = ExposureOrigin.ESTIMATED
-    lcpeak_db_c: Optional[float] = None
-    background_noise_db_a: Optional[float] = None
+    lcpeak_db_c: float | None = None
+    background_noise_db_a: float | None = None
 
 
 @dataclass
@@ -34,9 +34,9 @@ class NoiseExposureResult:
     """Result of noise exposure calculation."""
 
     lex_8h: float
-    lex_weekly: Optional[float] = None
-    lcpeak_aggregated: Optional[float] = None
-    uncertainty_db: Optional[float] = None
+    lex_weekly: float | None = None
+    lcpeak_aggregated: float | None = None
+    uncertainty_db: float | None = None
     confidence_score: float = 0.0
     risk_band: str = "negligible"
     k_impulse: float = 0.0
@@ -92,9 +92,7 @@ def calculate_lex_8h(exposures: list[PhaseExposure]) -> NoiseExposureResult:
         if exp.laeq_db_a < 0 or exp.laeq_db_a > 140:
             raise ValueError(f"LAeq {exp.laeq_db_a} outside valid range [0, 140]")
         if exp.duration_hours <= 0 or exp.duration_hours > 24:
-            raise ValueError(
-                f"Duration {exp.duration_hours} invalid (must be 0 < T <= 24)"
-            )
+            raise ValueError(f"Duration {exp.duration_hours} invalid (must be 0 < T <= 24)")
 
     reference_time = 8.0
     total_dose = 0.0
@@ -124,14 +122,12 @@ def calculate_lex_8h(exposures: list[PhaseExposure]) -> NoiseExposureResult:
     )
 
 
-def calculate_combined_uncertainty(exposures: list[PhaseExposure]) -> Optional[float]:
+def calculate_combined_uncertainty(exposures: list[PhaseExposure]) -> float | None:
     """Calculate combined extended uncertainty (ISO/IEC Guide 98-3)."""
     if not exposures:
         return None
 
-    sum_squared = sum(
-        EXPOSURE_UNCERTAINTY.get(exp.origin, 3.0) ** 2 for exp in exposures
-    )
+    sum_squared = sum(EXPOSURE_UNCERTAINTY.get(exp.origin, 3.0) ** 2 for exp in exposures)
     combined = np.sqrt(sum_squared)
     extended = 2 * combined  # k=2 for 95% confidence
     return round(extended, 2)

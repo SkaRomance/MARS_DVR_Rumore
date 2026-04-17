@@ -1,18 +1,18 @@
 """Ollama provider - Supports local + cloud API (OpenAI-compatible chat/completions)."""
 
-import httpx
 import logging
 from typing import Any
 
+import httpx
+
+from src.bootstrap.config import get_settings
 from src.infrastructure.llm.base import (
     LLMProvider,
+    LLMProviderError,
+    LLMProviderTimeoutError,
     LLMRequest,
     LLMResponse,
-    LLMProviderError,
-    LLMProviderUnavailableError,
-    LLMProviderTimeoutError,
 )
-from src.bootstrap.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -88,13 +88,9 @@ class OllamaProvider(LLMProvider):
             if response.status_code == 401:
                 raise LLMProviderError("Invalid API key for Ollama Cloud")
             elif response.status_code == 404:
-                raise LLMProviderError(
-                    f"Model '{self.model}' not found on Ollama Cloud"
-                )
+                raise LLMProviderError(f"Model '{self.model}' not found on Ollama Cloud")
             elif response.status_code != 200:
-                raise LLMProviderError(
-                    f"Ollama Cloud API error: {response.status_code} - {response.text[:500]}"
-                )
+                raise LLMProviderError(f"Ollama Cloud API error: {response.status_code} - {response.text[:500]}")
 
             data = response.json()
 
@@ -110,13 +106,9 @@ class OllamaProvider(LLMProvider):
             usage = data.get("usage", {})
             tokens_used = usage.get("total_tokens", 0)
             if tokens_used == 0:
-                tokens_used = (usage.get("prompt_tokens", 0) or 0) + (
-                    usage.get("completion_tokens", 0) or 0
-                )
+                tokens_used = (usage.get("prompt_tokens", 0) or 0) + (usage.get("completion_tokens", 0) or 0)
 
-            finish_reason = (
-                choices[0].get("finish_reason", "stop") if choices else "stop"
-            )
+            finish_reason = choices[0].get("finish_reason", "stop") if choices else "stop"
 
             return LLMResponse(
                 content=content,
@@ -161,9 +153,7 @@ class OllamaProvider(LLMProvider):
             if response.status_code == 404:
                 raise LLMProviderError(f"Model '{self.model}' not found locally")
             elif response.status_code != 200:
-                raise LLMProviderError(
-                    f"Ollama API error: {response.status_code} - {response.text[:500]}"
-                )
+                raise LLMProviderError(f"Ollama API error: {response.status_code} - {response.text[:500]}")
 
             data = response.json()
             content = data.get("response", "")
@@ -199,11 +189,7 @@ class OllamaProvider(LLMProvider):
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
-        endpoint = (
-            f"{self.base_url}/v1/embeddings"
-            if self._is_cloud
-            else f"{self.base_url}/api/embeddings"
-        )
+        endpoint = f"{self.base_url}/v1/embeddings" if self._is_cloud else f"{self.base_url}/api/embeddings"
 
         if not self._is_cloud:
             payload = {
@@ -216,9 +202,7 @@ class OllamaProvider(LLMProvider):
                 response = await client.post(endpoint, json=payload, headers=headers)
 
             if response.status_code != 200:
-                raise LLMProviderError(
-                    f"Embedding API error: {response.status_code} - {response.text[:500]}"
-                )
+                raise LLMProviderError(f"Embedding API error: {response.status_code} - {response.text[:500]}")
 
             data = response.json()
 
@@ -236,11 +220,7 @@ class OllamaProvider(LLMProvider):
     async def is_available(self) -> bool:
         """Check if Ollama service is available."""
         try:
-            endpoint = (
-                f"{self.base_url}/v1/models"
-                if self._is_cloud
-                else f"{self.base_url}/api/tags"
-            )
+            endpoint = f"{self.base_url}/v1/models" if self._is_cloud else f"{self.base_url}/api/tags"
             response = await self._client.get(endpoint)
             return response.status_code == 200
         except Exception as e:
@@ -250,11 +230,7 @@ class OllamaProvider(LLMProvider):
     async def list_models(self) -> list[dict[str, Any]]:
         """List available models."""
         try:
-            endpoint = (
-                f"{self.base_url}/v1/models"
-                if self._is_cloud
-                else f"{self.base_url}/api/tags"
-            )
+            endpoint = f"{self.base_url}/v1/models" if self._is_cloud else f"{self.base_url}/api/tags"
             response = await self._client.get(endpoint)
             if response.status_code == 200:
                 data = response.json()

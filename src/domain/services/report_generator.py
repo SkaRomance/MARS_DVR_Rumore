@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
@@ -16,16 +15,16 @@ class ReportContext:
     assessment_date: datetime
     assessment_id: str
     lex_8h: float
-    lex_weekly: Optional[float]
-    lcpeak: Optional[float]
+    lex_weekly: float | None
+    lcpeak: float | None
     risk_band: str
-    uncertainty_db: Optional[float]
+    uncertainty_db: float | None
     confidence_score: float
     workers_count: int
     job_roles: list[dict]
     mitigation_actions: list[dict]
-    measurement_protocol: Optional[str] = None
-    instrument_class: Optional[str] = None
+    measurement_protocol: str | None = None
+    instrument_class: str | None = None
 
 
 REPORT_TEMPLATE = """
@@ -110,9 +109,7 @@ class ReportGenerator:
 
         for key, value in ctx.items():
             if isinstance(value, datetime):
-                template = template.replace(
-                    f"{{{{ {key} }}}}", value.strftime("%d/%m/%Y")
-                )
+                template = template.replace(f"{{{{ {key} }}}}", value.strftime("%d/%m/%Y"))
             elif isinstance(value, list):
                 continue
             elif value is None:

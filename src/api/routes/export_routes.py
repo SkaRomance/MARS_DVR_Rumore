@@ -1,34 +1,36 @@
 """Export API routes for DVR document generation."""
 
 import logging
-import nh3
-from datetime import datetime, timezone
-from uuid import UUID
-from typing import Any
-
+from datetime import UTC, datetime
 from io import BytesIO
+from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status, Depends, Query
-from fastapi.responses import Response, StreamingResponse
+import nh3
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.infrastructure.auth.dependencies import get_current_user, get_current_tenant
-from src.infrastructure.database.models.user import User
-from src.infrastructure.database.models.tenant import Tenant
-from src.infrastructure.middleware.rate_limiter import export_limiter
 
 from src.api.schemas.export import (
+    DVRDocument,
+    ExportFormat,
+    ExportPreviewResponse,
     ExportRequest,
     ExportResponse,
-    ExportPreviewResponse,
-    ExportFormat,
-    DVRDocument,
+    PrintSettingsUpdateRequest,
     SectionUpdateRequest,
     TemplateUpdateRequest,
-    PrintSettingsUpdateRequest,
 )
 from src.bootstrap.database import get_db
 from src.domain.services.docx_generator import DOCXGenerator
 from src.domain.services.template_service import get_template_service
+from src.infrastructure.auth.dependencies import (
+    get_current_tenant,
+    get_current_user,
+    require_license,
+)
+from src.infrastructure.database.models.tenant import Tenant
+from src.infrastructure.database.models.user import User
+from src.infrastructure.middleware.rate_limiter import export_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -43,15 +45,16 @@ async def export_assessment_json(
     assessment_id: UUID,
     request: ExportRequest,
     current_user: User = Depends(get_current_user),
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(require_license),
     db: AsyncSession = Depends(get_db),
     _rate_limit=Depends(export_limiter),
     language: str = Query(default="it", pattern="^(it|en)$"),
 ):
     """Export assessment as JSON document."""
     from sqlalchemy import select
-    from src.infrastructure.database.models.noise_assessment import NoiseAssessment
+
     from src.infrastructure.database.models.noise_assessment import (
+        NoiseAssessment,
         NoiseAssessmentResult,
     )
 
@@ -76,17 +79,13 @@ async def export_assessment_json(
             )
 
         results_result = await db.execute(
-            select(NoiseAssessmentResult).where(
-                NoiseAssessmentResult.assessment_id == assessment_id
-            )
+            select(NoiseAssessmentResult).where(NoiseAssessmentResult.assessment_id == assessment_id)
         )
         results = results_result.scalars().all()
 
         content = {
             "assessment_id": str(assessment_id),
-            "assessment_date": assessment.assessment_date.isoformat()
-            if assessment.assessment_date
-            else None,
+            "assessment_date": assessment.assessment_date.isoformat() if assessment.assessment_date else None,
             "status": assessment.status,
             "version": assessment.version,
             "measurement_protocol": assessment.measurement_protocol,
@@ -113,7 +112,7 @@ async def export_assessment_json(
             format=ExportFormat.JSON,
             filename=filename,
             content_type="application/json",
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
             content=content,
             download_url=None,
         )
@@ -135,21 +134,22 @@ async def export_assessment_docx(
     assessment_id: UUID,
     request: ExportRequest,
     current_user: User = Depends(get_current_user),
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(require_license),
     db: AsyncSession = Depends(get_db),
     _rate_limit=Depends(export_limiter),
     language: str = Query(default="it", pattern="^(it|en)$"),
 ):
     """Export assessment as DOCX document."""
     from sqlalchemy import select
-    from src.infrastructure.database.models.noise_assessment import NoiseAssessment
-    from src.infrastructure.database.models.noise_assessment import (
-        NoiseAssessmentResult,
-    )
+
     from src.infrastructure.database.models.assessment_document import (
         AssessmentDocument,
     )
     from src.infrastructure.database.models.company import Company
+    from src.infrastructure.database.models.noise_assessment import (
+        NoiseAssessment,
+        NoiseAssessmentResult,
+    )
     from src.infrastructure.database.models.print_settings import PrintSettings
 
     try:
@@ -173,9 +173,7 @@ async def export_assessment_docx(
             )
 
         company_result = await db.execute(
-            select(Company)
-            .where(Company.id == assessment.company_id)
-            .where(Company.tenant_id == tenant.id)
+            select(Company).where(Company.id == assessment.company_id).where(Company.tenant_id == tenant.id)
         )
         company = company_result.scalar_one_or_none()
 
@@ -187,9 +185,7 @@ async def export_assessment_docx(
         print_settings_record = print_settings_result.scalar_one_or_none()
 
         results_result = await db.execute(
-            select(NoiseAssessmentResult).where(
-                NoiseAssessmentResult.assessment_id == assessment_id
-            )
+            select(NoiseAssessmentResult).where(NoiseAssessmentResult.assessment_id == assessment_id)
         )
         results = results_result.scalars().all()
 
@@ -223,9 +219,7 @@ async def export_assessment_docx(
             valutazione_html = "<h1>Risultati Valutazione</h1>"
             for r in results:
                 valutazione_html += f"<p><strong>LEX,8h:</strong> {r.lex_8h} dB(A) - "
-                valutazione_html += (
-                    f"<strong>Classe rischio:</strong> {r.risk_band}</p>"
-                )
+                valutazione_html += f"<strong>Classe rischio:</strong> {r.risk_band}</p>"
             sections_content["valutazione"] = valutazione_html
 
         print_settings_dict = None
@@ -259,6 +253,7 @@ async def export_assessment_docx(
 
         new_document = AssessmentDocument(
             assessment_id=assessment_id,
+            tenant_id=tenant.id,
             version=new_version,
             format="docx",
             language=request.language.value,
@@ -303,12 +298,13 @@ async def get_export_preview(
 ):
     """Get export preview without generating full document."""
     from sqlalchemy import select
-    from src.infrastructure.database.models.noise_assessment import NoiseAssessment
-    from src.infrastructure.database.models.noise_assessment import (
-        NoiseAssessmentResult,
-    )
+
     from src.infrastructure.database.models.assessment_document import (
         AssessmentDocument,
+    )
+    from src.infrastructure.database.models.noise_assessment import (
+        NoiseAssessment,
+        NoiseAssessmentResult,
     )
 
     try:
@@ -332,9 +328,7 @@ async def get_export_preview(
             )
 
         results_result = await db.execute(
-            select(NoiseAssessmentResult).where(
-                NoiseAssessmentResult.assessment_id == assessment_id
-            )
+            select(NoiseAssessmentResult).where(NoiseAssessmentResult.assessment_id == assessment_id)
         )
         results = results_result.scalars().all()
 
@@ -359,17 +353,13 @@ async def get_export_preview(
 
         if not results:
             warnings.append("Nessun risultato di valutazione presente")
-            warnings.append(
-                "Il documento DVR non potrà contenere i dati di esposizione"
-            )
+            warnings.append("Il documento DVR non potrà contenere i dati di esposizione")
 
         sections_count = 6
         estimated_pages = 10 + len(results) if results else 10
 
         has_attachments = False
-        has_ai_narrative = (
-            latest_doc is not None and latest_doc.content_json is not None
-        )
+        has_ai_narrative = latest_doc is not None and latest_doc.content_json is not None
 
         return ExportPreviewResponse(
             assessment_id=assessment_id,
@@ -384,9 +374,7 @@ async def get_export_preview(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            "Preview generation failed for assessment %s: %s", assessment_id, e
-        )
+        logger.error("Preview generation failed for assessment %s: %s", assessment_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Preview generation failed",
@@ -406,14 +394,15 @@ async def get_dvr_document(
 ):
     """Get full DVR document content."""
     from sqlalchemy import select
-    from src.infrastructure.database.models.noise_assessment import NoiseAssessment
-    from src.infrastructure.database.models.noise_assessment import (
-        NoiseAssessmentResult,
-    )
+
     from src.infrastructure.database.models.assessment_document import (
         AssessmentDocument,
     )
     from src.infrastructure.database.models.company import Company
+    from src.infrastructure.database.models.noise_assessment import (
+        NoiseAssessment,
+        NoiseAssessmentResult,
+    )
 
     try:
         result = await db.execute(
@@ -445,16 +434,12 @@ async def get_dvr_document(
         latest_doc = doc_result.scalar_one_or_none()
 
         company_result = await db.execute(
-            select(Company)
-            .where(Company.id == assessment.company_id)
-            .where(Company.tenant_id == tenant.id)
+            select(Company).where(Company.id == assessment.company_id).where(Company.tenant_id == tenant.id)
         )
         company = company_result.scalar_one_or_none()
 
         results_result = await db.execute(
-            select(NoiseAssessmentResult).where(
-                NoiseAssessmentResult.assessment_id == assessment_id
-            )
+            select(NoiseAssessmentResult).where(NoiseAssessmentResult.assessment_id == assessment_id)
         )
         results = results_result.scalars().all()
 
@@ -488,9 +473,7 @@ async def get_dvr_document(
         }
 
         sezione_3 = {
-            "data_valutazione": assessment.assessment_date.isoformat()
-            if assessment.assessment_date
-            else None,
+            "data_valutazione": assessment.assessment_date.isoformat() if assessment.assessment_date else None,
             "protocollo_misura": assessment.measurement_protocol,
             "classe_strumento": assessment.instrument_class,
             "risultati_mansione": [
@@ -542,9 +525,7 @@ async def get_dvr_document(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            "Failed to get DVR document for assessment %s: %s", assessment_id, e
-        )
+        logger.error("Failed to get DVR document for assessment %s: %s", assessment_id, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get DVR document",
@@ -563,10 +544,11 @@ async def list_document_sections(
 ):
     """List all sections with their current content."""
     from sqlalchemy import select
-    from src.infrastructure.database.models.noise_assessment import NoiseAssessment
+
     from src.infrastructure.database.models.assessment_document import (
         AssessmentDocument,
     )
+    from src.infrastructure.database.models.noise_assessment import NoiseAssessment
 
     try:
         result = await db.execute(
@@ -612,9 +594,7 @@ async def list_document_sections(
             is_modified = False
 
             if latest_doc and latest_doc.content_json:
-                section_content = latest_doc.content_json.get(
-                    sec["id"], section_content
-                )
+                section_content = latest_doc.content_json.get(sec["id"], section_content)
                 is_modified = True
 
             sections.append(
@@ -651,10 +631,11 @@ async def get_document_section(
 ):
     """Get single section content."""
     from sqlalchemy import select
-    from src.infrastructure.database.models.noise_assessment import NoiseAssessment
+
     from src.infrastructure.database.models.assessment_document import (
         AssessmentDocument,
     )
+    from src.infrastructure.database.models.noise_assessment import NoiseAssessment
 
     try:
         result = await db.execute(
@@ -700,9 +681,7 @@ async def get_document_section(
                 detail=f"Section {section_id} not found",
             )
 
-        section_content = (
-            f"<p>Sezione {section_definitions[section_id]} - Contenuto da compilare</p>"
-        )
+        section_content = f"<p>Sezione {section_definitions[section_id]} - Contenuto da compilare</p>"
         is_modified = False
 
         if latest_doc and latest_doc.content_json:
@@ -746,10 +725,11 @@ async def update_document_section(
     _rate_limit=Depends(export_limiter),
 ):
     from sqlalchemy import select
-    from src.infrastructure.database.models.noise_assessment import NoiseAssessment
+
     from src.infrastructure.database.models.assessment_document import (
         AssessmentDocument,
     )
+    from src.infrastructure.database.models.noise_assessment import NoiseAssessment
 
     try:
         result = await db.execute(
@@ -796,11 +776,7 @@ async def update_document_section(
         latest_doc = doc_result.scalar_one_or_none()
 
         new_version = (latest_doc.version + 1) if latest_doc else 1
-        content_json = (
-            latest_doc.content_json.copy()
-            if latest_doc and latest_doc.content_json
-            else {}
-        )
+        content_json = latest_doc.content_json.copy() if latest_doc and latest_doc.content_json else {}
 
         sanitized_html = nh3.clean(
             data.content_html,
@@ -828,6 +804,7 @@ async def update_document_section(
 
         new_document = AssessmentDocument(
             assessment_id=assessment_id,
+            tenant_id=tenant.id,
             version=new_version,
             format="draft",
             language="it",
@@ -871,13 +848,14 @@ async def list_templates(
 ):
     """List all document templates."""
     from sqlalchemy import select
+
     from src.infrastructure.database.models.document_template import DocumentTemplate
 
     try:
         result = await db.execute(
             select(DocumentTemplate)
             .where(DocumentTemplate.is_active == True)
-            .where(DocumentTemplate.tenant_id == tenant.id)
+            .where(DocumentTemplate.tenant_id == tenant.id)  # noqa: E712
         )
         templates = result.scalars().all()
 
@@ -913,6 +891,7 @@ async def get_template(
 ):
     """Get single template detail."""
     from sqlalchemy import select
+
     from src.infrastructure.database.models.document_template import DocumentTemplate
 
     try:
@@ -940,12 +919,8 @@ async def get_template(
             "language": template.language,
             "is_default": template.is_default,
             "category": template.category,
-            "created_at": template.created_at.isoformat()
-            if template.created_at
-            else None,
-            "updated_at": template.updated_at.isoformat()
-            if template.updated_at
-            else None,
+            "created_at": template.created_at.isoformat() if template.created_at else None,
+            "updated_at": template.updated_at.isoformat() if template.updated_at else None,
         }
 
     except HTTPException:
@@ -967,7 +942,8 @@ async def update_template(
     db: AsyncSession = Depends(get_db),
     _rate_limit=Depends(export_limiter),
 ):
-    from sqlalchemy import select, update
+    from sqlalchemy import select
+
     from src.infrastructure.database.models.document_template import DocumentTemplate
 
     try:
@@ -1049,6 +1025,7 @@ async def get_print_settings(
 ):
     """Get current user/company print settings."""
     from sqlalchemy import select
+
     from src.infrastructure.database.models.print_settings import PrintSettings
 
     try:
@@ -1120,6 +1097,7 @@ async def save_print_settings(
     _rate_limit=Depends(export_limiter),
 ):
     from sqlalchemy import select
+
     from src.infrastructure.database.models.print_settings import PrintSettings
 
     try:
@@ -1159,24 +1137,17 @@ async def save_print_settings(
             settings = PrintSettings(
                 company_id=settings_data.company_id,
                 tenant_id=tenant.id,
-                header_text=nh3.clean_text(
-                    settings_data.header_text or "Valutazione Rischio Rumore"
-                ),
+                header_text=nh3.clean_text(settings_data.header_text or "Valutazione Rischio Rumore"),
                 footer_text=nh3.clean_text(settings_data.footer_text or "MARS DVR"),
-                cover_title=nh3.clean_text(
-                    settings_data.cover_title or "VALUTAZIONE RISCHIO RUMORE"
-                ),
-                cover_subtitle=nh3.clean_text(
-                    settings_data.cover_subtitle or "Documento di Valutazione"
-                ),
+                cover_title=nh3.clean_text(settings_data.cover_title or "VALUTAZIONE RISCHIO RUMORE"),
+                cover_subtitle=nh3.clean_text(settings_data.cover_subtitle or "Documento di Valutazione"),
                 logo_url=settings_data.logo_url,
                 primary_color=settings_data.primary_color or "#1a365d",
                 secondary_color=settings_data.secondary_color or "#2c5282",
                 font_family=settings_data.font_family or "Times New Roman",
                 font_size=settings_data.font_size or 12,
                 paper_size=settings_data.paper_size or "A4",
-                margins=settings_data.margins
-                or {"top": 25, "bottom": 25, "left": 20, "right": 20},
+                margins=settings_data.margins or {"top": 25, "bottom": 25, "left": 20, "right": 20},
             )
             db.add(settings)
 

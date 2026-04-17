@@ -1,8 +1,6 @@
-from functools import lru_cache
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from src.bootstrap.config import get_settings
-
 
 _engine = None
 _async_session_factory = None
@@ -26,9 +24,7 @@ def get_engine():
 def get_session_factory():
     global _async_session_factory
     if _async_session_factory is None:
-        _async_session_factory = async_sessionmaker(
-            get_engine(), class_=AsyncSession, expire_on_commit=False
-        )
+        _async_session_factory = async_sessionmaker(get_engine(), class_=AsyncSession, expire_on_commit=False)
     return _async_session_factory
 
 

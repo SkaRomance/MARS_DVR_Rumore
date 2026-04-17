@@ -4,9 +4,9 @@ Splits extracted document pages into overlapping chunks
 suitable for embedding and retrieval.
 """
 
-import re
 import logging
-from dataclasses import dataclass, field
+import re
+from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -113,9 +113,7 @@ class TextChunker:
                     current_chunk = sub_chunks[-1] if sub_chunks else ""
                 else:
                     overlap_text = self._get_overlap(current_chunk)
-                    current_chunk = (
-                        overlap_text + "\n\n" + para if overlap_text else para
-                    )
+                    current_chunk = overlap_text + "\n\n" + para if overlap_text else para
 
         if current_chunk and len(current_chunk) >= self.min_chunk_size:
             chunks.append(current_chunk)

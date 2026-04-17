@@ -1,5 +1,6 @@
-import structlog
 from uuid import UUID
+
+import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bootstrap.database import get_db
@@ -43,9 +44,7 @@ async def log_audit(
             db_session.add(entry)
             await db_session.commit()
         except Exception:
-            logger.error(
-                "audit_log_write_failed", action=action, resource_type=resource_type
-            )
+            logger.error("audit_log_write_failed", action=action, resource_type=resource_type)
     else:
         try:
             async with get_db() as session:
@@ -61,6 +60,4 @@ async def log_audit(
                 session.add(entry)
                 await session.commit()
         except Exception:
-            logger.error(
-                "audit_log_write_failed", action=action, resource_type=resource_type
-            )
+            logger.error("audit_log_write_failed", action=action, resource_type=resource_type)

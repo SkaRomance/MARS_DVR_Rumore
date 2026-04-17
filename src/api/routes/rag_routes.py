@@ -6,16 +6,16 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.api.schemas.rag import (
+    RAGIndexResponse,
     RAGQueryRequest,
     RAGQueryResponse,
     RAGResultItem,
-    RAGIndexResponse,
     RAGStatsResponse,
 )
 from src.infrastructure.auth.dependencies import get_current_user, require_role
 from src.infrastructure.database.models.user import User, UserRole
-from src.infrastructure.rag.rag_service import RAGService
 from src.infrastructure.rag.pdf_extractor import PDFExtractor
+from src.infrastructure.rag.rag_service import RAGService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

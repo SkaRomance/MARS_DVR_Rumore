@@ -1,10 +1,17 @@
 import logging
-import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.schemas.auth import (
+    LoginRequest,
+    RefreshTokenRequest,
+    TokenResponse,
+    UserCreate,
+    UserResponse,
+    UserUpdate,
+)
 from src.bootstrap.database import get_db
 from src.infrastructure.auth.dependencies import get_current_user, require_role
 from src.infrastructure.auth.jwt_handler import (
@@ -12,27 +19,21 @@ from src.infrastructure.auth.jwt_handler import (
     create_refresh_token,
     verify_token,
 )
-from src.infrastructure.auth.password import verify_password, get_password_hash
-from src.infrastructure.middleware.rate_limiter import auth_limiter, default_limiter
-from src.infrastructure.database.models.user import User, UserRole
-from src.infrastructure.database.models.tenant import Tenant
-from src.api.schemas.auth import (
-    LoginRequest,
-    TokenResponse,
-    RefreshTokenRequest,
-    UserResponse,
-    UserCreate,
-    UserUpdate,
+from src.infrastructure.auth.password import (
+    PasswordPolicyError,
+    get_password_hash,
+    validate_password_policy,
+    verify_password,
 )
+from src.infrastructure.database.models.user import User, UserRole
+from src.infrastructure.middleware.rate_limiter import auth_limiter, default_limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(
-    data: LoginRequest, db: AsyncSession = Depends(get_db), _rate=Depends(auth_limiter)
-):
+async def login(data: LoginRequest, db: AsyncSession = Depends(get_db), _rate=Depends(auth_limiter)):
     result = await db.execute(select(User).where(User.email == data.email))
     user = result.scalar_one_or_none()
     if not user or not verify_password(data.password, user.hashed_password):
@@ -92,9 +93,7 @@ async def refresh_token(
     return TokenResponse(access_token=access_token, refresh_token=new_refresh_token)
 
 
-@router.post(
-    "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     data: UserCreate,
     current_user: User = Depends(require_role(UserRole.admin)),
@@ -112,6 +111,13 @@ async def register(
             status_code=status.HTTP_409_CONFLICT,
             detail="Email already registered",
         )
+    try:
+        validate_password_policy(data.password)
+    except PasswordPolicyError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
     user = User(
         tenant_id=data.tenant_id,
         email=data.email,
@@ -127,9 +133,7 @@ async def register(
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(
-    current_user: User = Depends(get_current_user), _rate=Depends(default_limiter)
-):
+async def get_me(current_user: User = Depends(get_current_user), _rate=Depends(default_limiter)):
     return current_user
 
 

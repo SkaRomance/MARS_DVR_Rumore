@@ -2,15 +2,15 @@
 
 import json
 import logging
-from dataclasses import dataclass, field
-from typing import Any, Optional
+from dataclasses import dataclass
+from typing import Any
 from uuid import UUID
 
-from src.infrastructure.llm.base import LLMProvider, LLMRequest, LLMResponse
 from src.domain.services.prompts.template_loader import (
-    get_template_loader,
     TemplateLoader,
+    get_template_loader,
 )
+from src.infrastructure.llm.base import LLMProvider, LLMRequest, LLMResponse
 
 logger = logging.getLogger(__name__)
 
@@ -94,13 +94,9 @@ class AIOrchestrator:
                     category_filter=category,
                 )
                 if results:
-                    rag_context = rag.build_context(
-                        results, max_chars=self._config.rag_max_context_chars
-                    )
+                    rag_context = rag.build_context(results, max_chars=self._config.rag_max_context_chars)
             except Exception as e:
-                logger.warning(
-                    "RAG retrieval failed (continuing without context): %s", e
-                )
+                logger.warning("RAG retrieval failed (continuing without context): %s", e)
 
         if rag_context:
             system_prompt += (
@@ -176,9 +172,7 @@ class AIOrchestrator:
                     e,
                 )
 
-        raise AIOrchestratorError(
-            f"LLM call failed after {self._config.max_retries} retries: {last_error}"
-        )
+        raise AIOrchestratorError(f"LLM call failed after {self._config.max_retries} retries: {last_error}")
 
     def _parse_json_response(self, content: str) -> dict[str, Any]:
         """Parse JSON from LLM response, handling markdown code blocks."""

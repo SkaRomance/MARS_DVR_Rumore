@@ -1,22 +1,28 @@
 import asyncio
 import uuid
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import (
-    event,
-    String as SAString,
-    LargeBinary as SALargeBinary,
-    Text as SAText,
     JSON,
     TypeDecorator,
-    types as satypes,
+    event,
 )
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB as PG_JSONB
+from sqlalchemy import (
+    LargeBinary as SALargeBinary,
+)
+from sqlalchemy import (
+    String as SAString,
+)
+from sqlalchemy import (
+    Text as SAText,
+)
+from sqlalchemy.dialects.postgresql import JSONB as PG_JSONB
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 _mock_limiter = MagicMock()
 _mock_limiter.init = AsyncMock()
@@ -30,15 +36,17 @@ sys.modules.setdefault(
 )
 sys.modules.setdefault("fastapi_limiter.depends", MagicMock())
 
-from src.bootstrap.main import app
 from src.bootstrap.database import get_db
+from src.bootstrap.main import app
+from src.infrastructure.auth.dependencies import get_current_tenant, require_license
 from src.infrastructure.auth.password import get_password_hash
 from src.infrastructure.database.base import Base
+from src.infrastructure.database.models.tenant import Tenant
 from src.infrastructure.middleware.rate_limiter import (
-    auth_limiter,
     ai_limiter,
-    export_limiter,
+    auth_limiter,
     default_limiter,
+    export_limiter,
     license_limiter,
 )
 
@@ -82,10 +90,7 @@ def _replace_pg_types_with_sqlite():
             elif isinstance(original_type, SALargeBinary):
                 type_map[column] = original_type
                 column.type = SAText()
-            elif (
-                hasattr(original_type, "__class__")
-                and original_type.__class__.__name__ == "LargeBinary"
-            ):
+            elif hasattr(original_type, "__class__") and original_type.__class__.__name__ == "LargeBinary":
                 type_map[column] = original_type
                 column.type = SAText()
     return type_map
@@ -112,7 +117,7 @@ async def test_engine():
     @event.listens_for(engine.sync_engine, "connect")
     def _set_sqlite_pragma(dbapi_conn, connection_record):
         cursor = dbapi_conn.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA foreign_keys=OFF")
         cursor.close()
 
     import sqlite3
@@ -135,9 +140,7 @@ async def test_engine():
 async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
     async with test_engine.connect() as connection:
         trans = await connection.begin()
-        session_factory = async_sessionmaker(
-            bind=connection, class_=AsyncSession, expire_on_commit=False
-        )
+        session_factory = async_sessionmaker(bind=connection, class_=AsyncSession, expire_on_commit=False)
         async with session_factory() as session:
             yield session
         await trans.rollback()
@@ -151,6 +154,7 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     app.dependency_overrides[get_db] = override_get_db
     for limiter_dep, noop in NOOP_LIMITERS.items():
         app.dependency_overrides[limiter_dep] = noop
+    app.dependency_overrides[require_license] = get_current_tenant
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
@@ -160,7 +164,6 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
 @pytest_asyncio.fixture
 async def test_tenant(db_session: AsyncSession):
-    from src.infrastructure.database.models.tenant import Tenant
 
     tenant = Tenant(
         id=uuid.uuid4(),

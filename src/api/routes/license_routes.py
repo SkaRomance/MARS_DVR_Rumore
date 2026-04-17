@@ -9,8 +9,8 @@ from src.api.schemas.license import (
 from src.bootstrap.config import get_settings
 from src.bootstrap.database import get_db
 from src.infrastructure.auth.dependencies import (
-    get_current_user,
     get_current_tenant,
+    get_current_user,
     require_role,
 )
 from src.infrastructure.database.models.user import UserRole

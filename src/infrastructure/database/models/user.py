@@ -1,13 +1,15 @@
-import uuid
 import enum
+import uuid
 from datetime import datetime
-from sqlalchemy import String, DateTime, Boolean, func
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
+
 from src.infrastructure.database.base import Base
 
 
-class UserRole(str, enum.Enum):
+class UserRole(enum.StrEnum):
     admin = "admin"
     consultant = "consultant"
     viewer = "viewer"
@@ -17,7 +19,9 @@ class User(Base):
     __tablename__ = "user"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenant.id"), nullable=False, index=True
+    )
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)

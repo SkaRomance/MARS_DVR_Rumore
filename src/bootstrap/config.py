@@ -1,7 +1,9 @@
 """Application configuration settings."""
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
+
+from pydantic import model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -13,6 +15,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     api_v1_prefix: str = "/api/v1/noise"
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:8080"]
+    cors_headers: list[str] = ["Content-Type", "Authorization", "X-Request-ID"]
 
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
@@ -32,7 +35,7 @@ class Settings(BaseSettings):
     db_pool_recycle: int = 1800
     db_pool_pre_ping: bool = True
 
-    jwt_secret_key: str = "change-me-in-production"
+    jwt_secret_key: str = ""
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 15
     jwt_refresh_token_expire_days: int = 7
@@ -46,6 +49,14 @@ class Settings(BaseSettings):
     license_grace_period_hours: int = 24
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+    @model_validator(mode="after")
+    def _validate_jwt_secret(self) -> "Settings":
+        if self.app_env != "development" and (
+            not self.jwt_secret_key or self.jwt_secret_key == "change-me-in-production"
+        ):
+            raise ValueError("JWT_SECRET_KEY must be set in production. Set JWT_SECRET_KEY environment variable.")
+        return self
 
 
 @lru_cache

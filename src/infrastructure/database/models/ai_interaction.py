@@ -2,7 +2,8 @@
 
 import uuid
 from datetime import datetime
-from sqlalchemy import String, DateTime, Text, Integer, Float, func
+
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -26,8 +27,8 @@ class AIInteraction(Base):
         primary_key=True,
         default=uuid.uuid4,
     )
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True, index=True
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenant.id"), nullable=False, index=True
     )
 
     # Context references

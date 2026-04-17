@@ -15,7 +15,10 @@ class AuthService {
         });
         if (!response.ok) {
             const err = await response.json();
-            throw new Error(err.detail || 'Login failed');
+            const msg = Array.isArray(err.detail)
+                ? err.detail.map(e => e.msg).join(', ')
+                : (err.detail || 'Login failed');
+            throw new Error(msg);
         }
         const data = await response.json();
         this.accessToken = data.access_token;

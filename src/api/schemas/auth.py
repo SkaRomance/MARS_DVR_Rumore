@@ -1,5 +1,7 @@
 import uuid
-from pydantic import BaseModel, EmailStr, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, EmailStr
+
 from src.infrastructure.database.models.user import UserRole
 
 

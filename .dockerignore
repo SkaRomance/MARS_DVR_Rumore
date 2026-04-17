@@ -11,3 +11,5 @@ node_modules
 .opencode
 tests
 mars_noise_module_full_agent_pack
+data/chroma_db/
+docker/

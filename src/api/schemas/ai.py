@@ -1,14 +1,14 @@
 """Pydantic schemas for AI endpoints."""
 
 from datetime import datetime
-from enum import Enum
-from typing import Any, Optional
+from enum import StrEnum
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field
 
 
-class InteractionType(str, Enum):
+class InteractionType(StrEnum):
     """Types of AI interactions."""
 
     BOOTSTRAP = "bootstrap"
@@ -19,7 +19,7 @@ class InteractionType(str, Enum):
     SOURCE_DETECTION = "source_detection"
 
 
-class SuggestionStatus(str, Enum):
+class SuggestionStatus(StrEnum):
     """Status of AI suggestions."""
 
     PENDING = "pending"
@@ -104,18 +104,10 @@ class NarrativeRequest(BaseModel):
     ateco_code: str = Field(..., description="ATECO code")
     assessment_date: str = Field(..., description="Assessment date")
     responsible_name: str = Field(..., description="Responsible person name")
-    results: dict[str, Any] = Field(
-        default_factory=dict, description="Calculation results"
-    )
-    roles: list[dict[str, Any]] = Field(
-        default_factory=list, description="Job roles data"
-    )
-    noise_sources: list[dict[str, Any]] = Field(
-        default_factory=list, description="Noise sources"
-    )
-    mitigations: list[str] = Field(
-        default_factory=list, description="Proposed mitigations"
-    )
+    results: dict[str, Any] = Field(default_factory=dict, description="Calculation results")
+    roles: list[dict[str, Any]] = Field(default_factory=list, description="Job roles data")
+    noise_sources: list[dict[str, Any]] = Field(default_factory=list, description="Noise sources")
+    mitigations: list[str] = Field(default_factory=list, description="Proposed mitigations")
     section: str | None = Field(
         default=None,
         description="Specific section to generate (or all if not specified)",
@@ -251,8 +243,8 @@ class MitigationControlResponse(BaseModel):
 
     type: str
     description: str
-    estimated_effectiveness: float | None
-    estimated_cost: str | None
+    estimated_effectiveness: float | None = None
+    estimated_cost: str | None = None
     priority: int
 
 

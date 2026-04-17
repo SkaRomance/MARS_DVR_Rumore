@@ -10,7 +10,7 @@ from typing import Any
 import chromadb
 from chromadb.config import Settings as ChromaSettings
 
-from src.infrastructure.rag.text_chunker import Chunk, TextChunker
+from src.infrastructure.rag.text_chunker import TextChunker
 
 logger = logging.getLogger(__name__)
 
@@ -153,9 +153,7 @@ class RAGService:
 
         return retrieved
 
-    def build_context(
-        self, retrieved: list[dict[str, Any]], max_chars: int = 4000
-    ) -> str:
+    def build_context(self, retrieved: list[dict[str, Any]], max_chars: int = 4000) -> str:
         """Build a context string from retrieved documents for LLM injection."""
         context_parts = []
         total_chars = 0

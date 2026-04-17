@@ -4,11 +4,12 @@ Extracts text from PDF files in the paf_library directory,
 preserving metadata (category, subcategory, filename, page).
 """
 
-import fitz
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+import fitz
 
 logger = logging.getLogger(__name__)
 
@@ -105,12 +106,8 @@ class PDFExtractor:
         category_key = parts[0] if len(parts) > 0 else "unknown"
         subcategory_key = parts[1] if len(parts) > 1 else "generic"
 
-        category = CATEGORY_MAP.get(
-            category_key, category_key.replace("_", " ").title()
-        )
-        subcategory = SUBCATEGORY_MAP.get(
-            subcategory_key, subcategory_key.replace("_", " ").title()
-        )
+        category = CATEGORY_MAP.get(category_key, category_key.replace("_", " ").title())
+        subcategory = SUBCATEGORY_MAP.get(subcategory_key, subcategory_key.replace("_", " ").title())
 
         doc = ExtractedDocument(
             filename=str(relative),

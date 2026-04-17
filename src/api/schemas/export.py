@@ -1,14 +1,14 @@
 """Pydantic schemas for export endpoints."""
 
 from datetime import datetime
-from enum import Enum
-from typing import Any, Optional
+from enum import StrEnum
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class ExportFormat(str, Enum):
+class ExportFormat(StrEnum):
     """Supported export formats."""
 
     JSON = "json"
@@ -16,7 +16,7 @@ class ExportFormat(str, Enum):
     DVR_SUMMARY = "dvr_summary"
 
 
-class ExportLanguage(str, Enum):
+class ExportLanguage(StrEnum):
     """Export language."""
 
     ITALIAN = "it"
@@ -175,7 +175,6 @@ class DVRDocument(BaseModel):
 
 
 class ExportPreviewResponse(BaseModel):
-
     assessment_id: UUID
     sections_count: int
     estimated_pages: int | None = None

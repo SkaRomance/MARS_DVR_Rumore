@@ -1,7 +1,8 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import select, func as sa_func
+from sqlalchemy import func as sa_func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.infrastructure.licensing.keygen_client import KeygenClient
@@ -63,7 +64,7 @@ class LicenseService:
         tenant.keygen_license_id = license_key
         tenant.plan = plan
         tenant.max_assessments = max_assessments
-        tenant.license_activated_at = datetime.now(timezone.utc)
+        tenant.license_activated_at = datetime.now(UTC)
         tenant.license_expires_at = expires
         tenant.machine_id = machine_id
 
@@ -114,9 +115,9 @@ class LicenseService:
             if validation is None:
                 activated_at = getattr(tenant, "license_activated_at", None)
                 if activated_at:
-                    now = datetime.now(timezone.utc)
+                    now = datetime.now(UTC)
                     if activated_at.tzinfo is None:
-                        activated_at = activated_at.replace(tzinfo=timezone.utc)
+                        activated_at = activated_at.replace(tzinfo=UTC)
                     if now - activated_at < timedelta(hours=self.grace_period_hours):
                         return {
                             "status": "active",
@@ -180,8 +181,8 @@ class LicenseService:
         }
 
     async def get_usage(self, tenant_id: UUID) -> dict:
-        from src.infrastructure.database.models.tenant import Tenant
         from src.infrastructure.database.models.noise_assessment import NoiseAssessment
+        from src.infrastructure.database.models.tenant import Tenant
 
         result = await self.db.execute(select(Tenant).where(Tenant.id == tenant_id))
         tenant = result.scalar_one_or_none()
@@ -189,9 +190,7 @@ class LicenseService:
             return {"status": "error", "detail": "Tenant not found"}
 
         count_result = await self.db.execute(
-            select(sa_func.count()).select_from(NoiseAssessment).where(
-                NoiseAssessment._is_deleted == False
-            )
+            select(sa_func.count()).select_from(NoiseAssessment).where(NoiseAssessment._is_deleted == False)  # noqa: E712
         )
         assessments_used = count_result.scalar() or 0
         max_assessments = tenant.max_assessments or 0

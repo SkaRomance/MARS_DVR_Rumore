@@ -6,8 +6,8 @@ from src.api.schemas.admin import LogoUploadResponse, TenantResponse
 from src.bootstrap.database import get_db
 from src.domain.services.logo_service import validate_logo
 from src.infrastructure.auth.dependencies import (
-    get_current_user,
     get_current_tenant,
+    get_current_user,
     require_role,
 )
 from src.infrastructure.database.models.tenant import Tenant
@@ -17,9 +17,7 @@ from src.infrastructure.middleware.rate_limiter import default_limiter
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
 
-@router.post(
-    "/tenant/logo", response_model=LogoUploadResponse, status_code=status.HTTP_200_OK
-)
+@router.post("/tenant/logo", response_model=LogoUploadResponse, status_code=status.HTTP_200_OK)
 async def upload_logo(
     upload: UploadFile = File(...),
     content_type: str = Form(...),
@@ -53,9 +51,7 @@ async def get_logo(
     _rate=Depends(default_limiter),
 ):
     if not tenant.logo_data or not tenant.logo_mime_type:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="No logo found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No logo found")
 
     return Response(content=tenant.logo_data, media_type=tenant.logo_mime_type)
 

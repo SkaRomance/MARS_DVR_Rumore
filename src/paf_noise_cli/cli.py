@@ -5,8 +5,8 @@ import csv
 import json
 import logging
 import re
-import time
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
 from html import unescape
@@ -16,7 +16,6 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
-
 
 LOGGER = logging.getLogger("paf_noise_cli")
 
@@ -292,7 +291,9 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command")
 
     discover_parser = subparsers.add_parser("discover", help="scansiona la lista paginata e salva gli objId")
-    discover_parser.add_argument("-v", "--verbose", action="count", default=argparse.SUPPRESS, help="aumenta il livello di log")
+    discover_parser.add_argument(
+        "-v", "--verbose", action="count", default=argparse.SUPPRESS, help="aumenta il livello di log"
+    )
     add_network_options(discover_parser)
     discover_parser.add_argument("--start-page", type=int, default=1, help="prima pagina da leggere")
     discover_parser.add_argument("--end-page", type=int, help="ultima pagina da leggere; default: autodetect")
@@ -305,7 +306,9 @@ def build_parser() -> argparse.ArgumentParser:
     discover_parser.set_defaults(handler=handle_discover)
 
     export_parser = subparsers.add_parser("export", help="scarica le schede e produce JSONL/CSV")
-    export_parser.add_argument("-v", "--verbose", action="count", default=argparse.SUPPRESS, help="aumenta il livello di log")
+    export_parser.add_argument(
+        "-v", "--verbose", action="count", default=argparse.SUPPRESS, help="aumenta il livello di log"
+    )
     add_network_options(export_parser)
     export_parser.add_argument("--start-page", type=int, default=1, help="prima pagina da leggere")
     export_parser.add_argument("--end-page", type=int, help="ultima pagina da leggere; default: autodetect")
@@ -322,7 +325,9 @@ def build_parser() -> argparse.ArgumentParser:
     export_parser.set_defaults(handler=handle_export)
 
     parse_parser = subparsers.add_parser("parse-html", help="parsa una scheda HTML salvata localmente")
-    parse_parser.add_argument("-v", "--verbose", action="count", default=argparse.SUPPRESS, help="aumenta il livello di log")
+    parse_parser.add_argument(
+        "-v", "--verbose", action="count", default=argparse.SUPPRESS, help="aumenta il livello di log"
+    )
     parse_parser.add_argument("html_file", type=Path, help="file HTML della scheda")
     parse_parser.add_argument("--obj-id", type=int, default=0, help="objId da associare al record")
     parse_parser.add_argument("--url", default="", help="URL sorgente da riportare nell'output")
@@ -337,7 +342,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def add_network_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--base-url", default=DEFAULT_BASE_URL, help="base URL del portale; default: http://www.portaleagentifisici.it")
+    parser.add_argument(
+        "--base-url", default=DEFAULT_BASE_URL, help="base URL del portale; default: http://www.portaleagentifisici.it"
+    )
     parser.add_argument("--timeout", type=float, default=30.0, help="timeout per richiesta HTTP")
     parser.add_argument("--retries", type=int, default=3, help="numero massimo di tentativi per richiesta")
     parser.add_argument("--delay", type=float, default=0.5, help="attesa minima tra richieste HTTP")
@@ -506,10 +513,14 @@ def parse_list_page(html: str) -> ListPageInfo:
 def parse_detail_page(*, obj_id: int, url: str, html: str) -> MachineRecord:
     page_title = extract_html_title(html)
     lines = extract_relevant_lines(html)
-    record = MachineRecord(obj_id=obj_id, source_url=url, page_title=page_title, raw_lines=lines, raw_text="\n".join(lines))
+    record = MachineRecord(
+        obj_id=obj_id, source_url=url, page_title=page_title, raw_lines=lines, raw_text="\n".join(lines)
+    )
 
     declared_idx = find_line_index(lines, lambda line: "Valori dichiarati ai sensi della norma" in line)
-    risks_idx = find_line_index(lines, lambda line: "Questo macchinario potrebbe avere anche dei rischi derivanti da" in line)
+    risks_idx = find_line_index(
+        lines, lambda line: "Questo macchinario potrebbe avere anche dei rischi derivanti da" in line
+    )
     comparto_idx = find_line_index(lines, lambda line: "COMPARTO:" in line)
     condizioni_idx = find_line_index(lines, lambda line: line.lstrip("# ").strip() == "Condizioni")
     power_idx = find_line_index(lines, lambda line: "LIVELLO DI POTENZA ACUSTICA MISURATA" in line)
@@ -626,7 +637,13 @@ def parse_declared_values(lines: list[str], record: MachineRecord) -> None:
         if "valore di picco" in lowered or "note" in lowered:
             note_lines.append(line)
             continue
-        if line.startswith("L_") or line.startswith("L{") or "dBA" not in line and "dBC" not in line and "dB" not in line:
+        if (
+            line.startswith("L_")
+            or line.startswith("L{")
+            or "dBA" not in line
+            and "dBC" not in line
+            and "dB" not in line
+        ):
             continue
         numeric_lines.append(line)
 
@@ -711,7 +728,9 @@ def parse_key_value_line(line: str) -> tuple[str, str] | None:
 
 
 def parse_inline_context_values(line: str) -> dict[str, str]:
-    pattern = re.compile(r"(COMPARTO|ACCESSORIO|LAVORO EFFETTUATO):\s*(.*?)(?=(?:COMPARTO|ACCESSORIO|LAVORO EFFETTUATO):|$)")
+    pattern = re.compile(
+        r"(COMPARTO|ACCESSORIO|LAVORO EFFETTUATO):\s*(.*?)(?=(?:COMPARTO|ACCESSORIO|LAVORO EFFETTUATO):|$)"
+    )
     context: dict[str, str] = {}
     for raw_label, raw_value in pattern.findall(line):
         label = slugify_label(raw_label)
@@ -895,7 +914,8 @@ def flatten_record(record: MachineRecord) -> dict[str, Any]:
         "related_risks": ", ".join(record.related_risks),
         "comparto": record.context.get("comparto", ""),
         "accessorio": record.context.get("accessorio", ""),
-        "work_performed": record.context_details.get("work_performed", "") or record.context.get("lavoro_effettuato", ""),
+        "work_performed": record.context_details.get("work_performed", "")
+        or record.context.get("lavoro_effettuato", ""),
         "environment": record.context_details.get("environment", ""),
         "measured_power_lwa": record.measured_power.get("lwa", ""),
         "measured_power_unit": record.measured_power.get("unit", ""),
@@ -913,7 +933,14 @@ def normalize_space(value: str) -> str:
 
 def slugify_label(label: str) -> str:
     cleaned = normalize_space(label).lower()
-    cleaned = cleaned.replace("à", "a").replace("è", "e").replace("é", "e").replace("ì", "i").replace("ò", "o").replace("ù", "u")
+    cleaned = (
+        cleaned.replace("à", "a")
+        .replace("è", "e")
+        .replace("é", "e")
+        .replace("ì", "i")
+        .replace("ò", "o")
+        .replace("ù", "u")
+    )
     cleaned = cleaned.replace("/", " ")
     cleaned = re.sub(r"[^a-z0-9 ]+", "", cleaned)
     return re.sub(r"\s+", "_", cleaned).strip("_")

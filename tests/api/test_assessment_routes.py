@@ -27,9 +27,7 @@ async def test_company(db_session: AsyncSession, test_tenant):
 
 
 @pytest.mark.asyncio
-async def test_create_assessment(
-    client: AsyncClient, test_admin_user, auth_headers, test_company
-):
+async def test_create_assessment(client: AsyncClient, test_admin_user, auth_headers, test_company):
     response = await client.post(
         f"{ASSESSMENT_PREFIX}/",
         json={
@@ -47,9 +45,7 @@ async def test_create_assessment(
 
 
 @pytest.mark.asyncio
-async def test_list_assessments(
-    client: AsyncClient, test_admin_user, auth_headers, test_company
-):
+async def test_list_assessments(client: AsyncClient, test_admin_user, auth_headers, test_company):
     await client.post(
         f"{ASSESSMENT_PREFIX}/",
         json={
@@ -68,9 +64,7 @@ async def test_list_assessments(
 @pytest.mark.asyncio
 async def test_get_assessment_not_found(client: AsyncClient, auth_headers):
     random_uuid = str(uuid.uuid4())
-    response = await client.get(
-        f"{ASSESSMENT_PREFIX}/{random_uuid}", headers=auth_headers
-    )
+    response = await client.get(f"{ASSESSMENT_PREFIX}/{random_uuid}", headers=auth_headers)
     assert response.status_code == 404
 
 
@@ -112,7 +106,5 @@ async def test_calculate_exposure(client: AsyncClient, test_admin_user, auth_hea
 @pytest.mark.asyncio
 async def test_delete_assessment_not_found(client: AsyncClient, auth_headers):
     random_uuid = str(uuid.uuid4())
-    response = await client.delete(
-        f"{ASSESSMENT_PREFIX}/{random_uuid}", headers=auth_headers
-    )
+    response = await client.delete(f"{ASSESSMENT_PREFIX}/{random_uuid}", headers=auth_headers)
     assert response.status_code == 404

@@ -1,5 +1,6 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.infrastructure.database.models.ateco import AtecoCatalog
 
 ATECO_MACRO_CATEGORIES = {
@@ -386,12 +387,8 @@ def _division_from_ateco_code(ateco_code: str) -> str | None:
     return None
 
 
-async def get_macro_category_for_ateco(
-    ateco_code: str, db_session: AsyncSession
-) -> dict | None:
-    result = await db_session.execute(
-        select(AtecoCatalog).where(AtecoCatalog.code == ateco_code.strip())
-    )
+async def get_macro_category_for_ateco(ateco_code: str, db_session: AsyncSession) -> dict | None:
+    result = await db_session.execute(select(AtecoCatalog).where(AtecoCatalog.code == ateco_code.strip()))
     ateco_entry = result.scalar_one_or_none()
     if ateco_entry and ateco_entry.category:
         macro = get_macro_category(ateco_entry.category)

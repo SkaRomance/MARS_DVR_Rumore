@@ -1,40 +1,42 @@
 """AI routes for noise assessment assistance."""
 
-import time
 import logging
-from typing import Any
+import time
+from datetime import UTC
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas.ai import (
     BootstrapRequest,
     BootstrapResponse,
-    ReviewRequest,
-    ReviewResponse,
     ExplainRequest,
     ExplainResponse,
-    NarrativeRequest,
-    NarrativeResponse,
+    HealthResponse,
+    InteractionResponse,
     MitigationRequest,
     MitigationResponse,
+    NarrativeRequest,
+    NarrativeResponse,
+    ReviewRequest,
+    ReviewResponse,
     SourceDetectionRequest,
     SourceDetectionResponse,
     SuggestionActionRequest,
     SuggestionResponse,
-    InteractionResponse,
-    HealthResponse,
-    InteractionType,
     SuggestionStatus,
 )
-from src.bootstrap.config import get_settings, Settings
+from src.bootstrap.config import Settings, get_settings
 from src.bootstrap.database import get_db
-from src.infrastructure.llm import OllamaProvider, MockProvider
-from src.infrastructure.auth.dependencies import get_current_user, get_current_tenant
-from src.infrastructure.database.models.user import User
+from src.infrastructure.auth.dependencies import (
+    get_current_tenant,
+    get_current_user,
+    require_license,
+)
 from src.infrastructure.database.models.tenant import Tenant
+from src.infrastructure.database.models.user import User
+from src.infrastructure.llm import MockProvider, OllamaProvider
 from src.infrastructure.middleware.rate_limiter import ai_limiter
 
 logger = logging.getLogger(__name__)
@@ -53,7 +55,7 @@ def get_llm_provider(settings: Settings = Depends(get_settings)):
         return MockProvider()
 
 
-@router.get("/health", response_model=HealthResponse)
+@router.get("/ai/health", response_model=HealthResponse)
 async def ai_health_check(provider=Depends(get_llm_provider)):
     """Check AI service health."""
     start = time.time()
@@ -78,14 +80,13 @@ async def ai_health_check(provider=Depends(get_llm_provider)):
         )
 
 
-@router.post(
-    "/assessments/{assessment_id}/ai/bootstrap", response_model=BootstrapResponse
-)
+@router.post("/assessments/{assessment_id}/ai/bootstrap", response_model=BootstrapResponse)
 async def ai_bootstrap(
     assessment_id: UUID,
     request: BootstrapRequest,
     settings: Settings = Depends(get_settings),
     current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(require_license),
     _rate_limit=Depends(ai_limiter),
 ):
     """AI-guided initial assessment setup.
@@ -144,6 +145,7 @@ async def ai_review(
     request: ReviewRequest,
     settings: Settings = Depends(get_settings),
     current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(require_license),
     _rate_limit=Depends(ai_limiter),
 ):
     """Review existing assessment data.
@@ -203,6 +205,7 @@ async def ai_explain(
     request: ExplainRequest,
     settings: Settings = Depends(get_settings),
     current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(require_license),
     _rate_limit=Depends(ai_limiter),
 ):
     """Explain calculations, risk decisions, or regulations.
@@ -237,9 +240,7 @@ async def ai_explain(
 
         return ExplainResponse(
             explanation=result.explanation,
-            technical_details=result.technical_details.__dict__
-            if result.technical_details
-            else None,
+            technical_details=result.technical_details.__dict__ if result.technical_details else None,
             related_regulations=result.related_regulations,
             confidence=result.confidence,
         )
@@ -252,14 +253,13 @@ async def ai_explain(
         )
 
 
-@router.post(
-    "/assessments/{assessment_id}/ai/narrative", response_model=NarrativeResponse
-)
+@router.post("/assessments/{assessment_id}/ai/narrative", response_model=NarrativeResponse)
 async def ai_generate_narrative(
     assessment_id: UUID,
     request: NarrativeRequest,
     settings: Settings = Depends(get_settings),
     current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(require_license),
     _rate_limit=Depends(ai_limiter),
 ):
     """Generate DVR narrative text.
@@ -317,6 +317,7 @@ async def ai_suggest_mitigations(
     request: MitigationRequest,
     settings: Settings = Depends(get_settings),
     current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(require_license),
     _rate_limit=Depends(ai_limiter),
 ):
     """Suggest risk mitigation measures.
@@ -353,9 +354,7 @@ async def ai_suggest_mitigations(
 
         return MitigationResponse(
             engineer_controls=[c.__dict__ for c in result.engineer_controls],
-            administrative_controls=[
-                c.__dict__ for c in result.administrative_controls
-            ],
+            administrative_controls=[c.__dict__ for c in result.administrative_controls],
             ppe_recommendations=[p.__dict__ for p in result.ppe_recommendations],
             priority_order=result.priority_order,
             overall_risk_reduction=result.overall_risk_reduction,
@@ -378,6 +377,7 @@ async def ai_detect_sources(
     request: SourceDetectionRequest,
     settings: Settings = Depends(get_settings),
     current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(require_license),
     _rate_limit=Depends(ai_limiter),
 ):
     """Detect noise sources from free-text description.
@@ -403,7 +403,7 @@ async def ai_detect_sources(
         result = await agent.detect(
             description=request.description,
             assessment_id=assessment_id,
-            context=request.context or {},
+            context={"category": request.category} if request.category else {},
         )
 
         return SourceDetectionResponse(
@@ -434,6 +434,7 @@ async def get_suggestions(
 ):
     """Get AI suggestions for an assessment."""
     from sqlalchemy import select
+
     from src.infrastructure.database.models.ai_suggestion import AISuggestion
 
     try:
@@ -479,8 +480,10 @@ async def suggestion_action(
     _rate_limit=Depends(ai_limiter),
 ):
     """Approve or reject an AI suggestion."""
-    from datetime import datetime, timezone
-    from sqlalchemy import select, update
+    from datetime import datetime
+
+    from sqlalchemy import select
+
     from src.infrastructure.database.models.ai_suggestion import (
         AISuggestion,
         AISuggestionStatus,
@@ -503,7 +506,7 @@ async def suggestion_action(
 
         if request.status == SuggestionStatus.APPROVED:
             suggestion.status = AISuggestionStatus.APPROVED
-            suggestion.approved_at = datetime.now(timezone.utc)
+            suggestion.approved_at = datetime.now(UTC)
         elif request.status == SuggestionStatus.REJECTED:
             suggestion.status = AISuggestionStatus.REJECTED
             suggestion.rejection_reason = request.feedback
@@ -535,6 +538,7 @@ async def get_interactions(
 ):
     """Get AI interaction history for an assessment."""
     from sqlalchemy import select
+
     from src.infrastructure.database.models.ai_interaction import AIInteraction
 
     try:

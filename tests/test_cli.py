@@ -9,7 +9,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from paf_noise_cli.cli import extract_metrics, flatten_record, parse_detail_page, parse_list_page
 
-
 LIST_HTML = """
 <html>
   <body>

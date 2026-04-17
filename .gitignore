@@ -36,7 +36,6 @@ Thumbs.db
 logs/
 
 # Alembic
-alembic.ini
 alembic/
 migrations/*.log
 
@@ -49,3 +48,9 @@ data/*.json
 test_db.sqlite3
 .opencode/
 data/
+
+# SSL certificates
+docker/nginx/ssl/*.pem
+
+# Backups
+backups/

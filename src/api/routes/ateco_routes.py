@@ -1,13 +1,16 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.schemas.ateco import AtecoCodeInfoResponse, AtecoMacroCategoryResponse
 from src.bootstrap.database import get_db
-from src.api.schemas.ateco import AtecoMacroCategoryResponse, AtecoCodeInfoResponse
 from src.domain.services.ateco_service import (
-    get_macro_category,
     get_all_macro_categories,
+    get_macro_category,
     get_macro_category_for_ateco,
 )
+from src.infrastructure.auth.dependencies import get_current_user
+from src.infrastructure.database.models.user import User
+from src.infrastructure.middleware.rate_limiter import default_limiter
 
 router = APIRouter(prefix="/ateco", tags=["ATECO"])
 
@@ -16,7 +19,10 @@ router = APIRouter(prefix="/ateco", tags=["ATECO"])
     "/macro-categories",
     response_model=list[AtecoMacroCategoryResponse],
 )
-async def list_macro_categories():
+async def list_macro_categories(
+    current_user: User = Depends(get_current_user),
+    _rate_limit=Depends(default_limiter),
+):
     return get_all_macro_categories()
 
 
@@ -24,7 +30,11 @@ async def list_macro_categories():
     "/macro-categories/{category_code}",
     response_model=AtecoMacroCategoryResponse,
 )
-async def get_single_macro_category(category_code: str):
+async def get_single_macro_category(
+    category_code: str,
+    current_user: User = Depends(get_current_user),
+    _rate_limit=Depends(default_limiter),
+):
     result = get_macro_category(category_code)
     if result is None:
         raise HTTPException(
@@ -38,6 +48,11 @@ async def get_single_macro_category(category_code: str):
     "/code/{ateco_code}",
     response_model=AtecoCodeInfoResponse,
 )
-async def get_ateco_code_info(ateco_code: str, db: AsyncSession = Depends(get_db)):
+async def get_ateco_code_info(
+    ateco_code: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _rate_limit=Depends(default_limiter),
+):
     macro = await get_macro_category_for_ateco(ateco_code, db_session=db)
     return AtecoCodeInfoResponse(ateco_code=ateco_code, macro_category=macro)

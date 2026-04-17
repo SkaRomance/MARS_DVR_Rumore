@@ -1,11 +1,13 @@
 """MitigationMeasure entity model - Technical/administrative/PPE measures."""
 
 import uuid
-from datetime import datetime, date
+from datetime import date, datetime
 from decimal import Decimal
-from sqlalchemy import String, DateTime, Text, func, Integer, Boolean
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
+
 from src.infrastructure.database.base import Base
 
 
@@ -14,15 +16,11 @@ class MitigationMeasure(Base):
 
     __tablename__ = "mitigation_measure"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenant.id"), nullable=False, index=True
     )
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True, index=True
-    )
-    assessment_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, index=True
-    )
+    assessment_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     type: Mapped[str] = mapped_column(String(50), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -31,9 +29,7 @@ class MitigationMeasure(Base):
     implementation_date: Mapped[date | None] = mapped_column(nullable=True)
     cost_euro: Mapped[Decimal | None] = mapped_column(nullable=True)
     approved_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

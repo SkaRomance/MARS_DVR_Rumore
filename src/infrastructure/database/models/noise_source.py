@@ -2,9 +2,11 @@
 
 import uuid
 from datetime import date, datetime
-from sqlalchemy import String, Date, DateTime, Numeric, Text, func
+
+from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
+
 from src.infrastructure.database.base import Base
 
 
@@ -13,11 +15,9 @@ class NoiseSourceCatalog(Base):
 
     __tablename__ = "noise_source_catalog"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True, index=True
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenant.id"), nullable=False, index=True
     )
 
     # Identification
@@ -27,27 +27,15 @@ class NoiseSourceCatalog(Base):
     alimentazione: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     # Emission data (dichiarati dal costruttore)
-    laeq_min_db_a: Mapped[float | None] = mapped_column(
-        Numeric(5, 1), nullable=True, comment="Min LAeq typical range"
-    )
-    laeq_max_db_a: Mapped[float | None] = mapped_column(
-        Numeric(5, 1), nullable=True, comment="Max LAeq typical range"
-    )
-    laeq_typical_db_a: Mapped[float | None] = mapped_column(
-        Numeric(5, 1), nullable=True, comment="Typical LAeq value"
-    )
-    lcpeak_db_c: Mapped[float | None] = mapped_column(
-        Numeric(5, 1), nullable=True, comment="C-weighted peak"
-    )
+    laeq_min_db_a: Mapped[float | None] = mapped_column(Numeric(5, 1), nullable=True, comment="Min LAeq typical range")
+    laeq_max_db_a: Mapped[float | None] = mapped_column(Numeric(5, 1), nullable=True, comment="Max LAeq typical range")
+    laeq_typical_db_a: Mapped[float | None] = mapped_column(Numeric(5, 1), nullable=True, comment="Typical LAeq value")
+    lcpeak_db_c: Mapped[float | None] = mapped_column(Numeric(5, 1), nullable=True, comment="C-weighted peak")
 
     # Source metadata
-    fonte: Mapped[str] = mapped_column(
-        String(100), nullable=False, default="PAF - Portale Agenti Fisici"
-    )
+    fonte: Mapped[str] = mapped_column(String(100), nullable=False, default="PAF - Portale Agenti Fisici")
     url_fonte: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    data_aggiornamento: Mapped[date] = mapped_column(
-        Date, nullable=False, default=date.today
-    )
+    data_aggiornamento: Mapped[date] = mapped_column(Date, nullable=False, default=date.today)
 
     # Disclaimer (obbligatorio per uso PAF)
     disclaimer: Mapped[str] = mapped_column(
@@ -69,23 +57,17 @@ class MachineAsset(Base):
 
     __tablename__ = "machine_asset"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True, index=True
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenant.id"), nullable=False, index=True
     )
     company_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, index=True
+        UUID(as_uuid=True), ForeignKey("company.id"), nullable=False, index=True
     )
-    unit_site_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True, index=True
-    )
+    unit_site_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
 
     # Reference to catalog
-    source_catalog_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True
-    )
+    source_catalog_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
     # Physical details
     marca: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -95,9 +77,7 @@ class MachineAsset(Base):
     # Acquisition
     acquisition_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     version: Mapped[int] = mapped_column(default=1)
     _is_deleted: Mapped[bool] = mapped_column(default=False)
 

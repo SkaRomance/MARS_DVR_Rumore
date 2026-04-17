@@ -3,17 +3,15 @@ from unittest.mock import AsyncMock
 import pytest
 from httpx import AsyncClient
 
-from src.bootstrap.main import app
 from src.api.routes.license_routes import _get_license_service
+from src.bootstrap.main import app
 from src.infrastructure.licensing.license_service import LicenseService
 
 LICENSE_PREFIX = "/api/v1/noise/license"
 
 
 @pytest.mark.asyncio
-async def test_get_license_status(
-    client: AsyncClient, auth_headers, test_tenant, db_session
-):
+async def test_get_license_status(client: AsyncClient, auth_headers, test_tenant, db_session):
     mock_service = AsyncMock(spec=LicenseService)
     mock_service.get_license_status.return_value = {
         "status": "inactive",
@@ -42,9 +40,7 @@ async def test_get_license_status(
 
 
 @pytest.mark.asyncio
-async def test_activate_license_as_admin(
-    client: AsyncClient, auth_headers, test_tenant, db_session
-):
+async def test_activate_license_as_admin(client: AsyncClient, auth_headers, test_tenant, db_session):
     mock_service = AsyncMock(spec=LicenseService)
     mock_service.activate_license.return_value = {
         "status": "active",
@@ -83,9 +79,7 @@ async def test_activate_license_as_admin(
 
 
 @pytest.mark.asyncio
-async def test_activate_license_failure(
-    client: AsyncClient, auth_headers, test_tenant, db_session
-):
+async def test_activate_license_failure(client: AsyncClient, auth_headers, test_tenant, db_session):
     mock_service = AsyncMock(spec=LicenseService)
     mock_service.activate_license.return_value = {
         "status": "error",
@@ -111,9 +105,7 @@ async def test_activate_license_failure(
 
 
 @pytest.mark.asyncio
-async def test_deactivate_license_as_admin(
-    client: AsyncClient, auth_headers, test_tenant, db_session
-):
+async def test_deactivate_license_as_admin(client: AsyncClient, auth_headers, test_tenant, db_session):
     mock_service = AsyncMock(spec=LicenseService)
     mock_service.deactivate_license.return_value = {"status": "inactive"}
 
@@ -138,9 +130,7 @@ async def test_deactivate_license_as_admin(
 
 
 @pytest.mark.asyncio
-async def test_deactivate_license_failure(
-    client: AsyncClient, auth_headers, test_tenant, db_session
-):
+async def test_deactivate_license_failure(client: AsyncClient, auth_headers, test_tenant, db_session):
     mock_service = AsyncMock(spec=LicenseService)
     mock_service.deactivate_license.return_value = {
         "status": "error",

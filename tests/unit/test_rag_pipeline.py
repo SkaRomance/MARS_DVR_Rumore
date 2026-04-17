@@ -1,11 +1,9 @@
 """Tests for RAG pipeline - Text chunking and RAG service retrieval."""
 
-import os
 import pytest
-import tempfile
-from pathlib import Path
-from src.infrastructure.rag.text_chunker import TextChunker, Chunk
+
 from src.infrastructure.rag.rag_service import RAGService
+from src.infrastructure.rag.text_chunker import Chunk, TextChunker
 
 
 class TestTextChunker:
@@ -132,9 +130,7 @@ class TestRAGService:
             },
         ]
         await rag.index_documents(pages)
-        results = await rag.query(
-            "obblighi datore lavoro", n_results=1, category_filter="Rumore"
-        )
+        results = await rag.query("obblighi datore lavoro", n_results=1, category_filter="Rumore")
         assert len(results) > 0
         assert results[0]["metadata"]["category"] == "Rumore"
 
