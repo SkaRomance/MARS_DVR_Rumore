@@ -191,6 +191,9 @@ class NoiseAssessmentContextService:
         ctx = await self.get_by_id(context_id=context_id, tenant_id=tenant_id)
         ctx.status = status.value
         await self.session.flush()
+        # Refresh to pick up server-updated updated_at, else accessing it
+        # after route's commit triggers async I/O in sync pydantic context
+        await self.session.refresh(ctx)
         return ctx
 
     # ── internal ───────────────────────────────────────────────────

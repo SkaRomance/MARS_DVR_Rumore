@@ -15,6 +15,7 @@ from src.api.routes import (
     auth_routes,
     catalog_routes,
     company_routes,
+    context_routes,
     export_routes,
     health,
     job_role_routes,
@@ -104,6 +105,7 @@ app.include_router(
     tags=["Noise Source Catalog"],
 )
 app.include_router(rag_routes.router, prefix=settings.api_v1_prefix + "/rag", tags=["RAG"])
+app.include_router(context_routes.router, prefix=settings.api_v1_prefix, tags=["Noise Contexts"])
 
 
 @app.get("/")
