@@ -51,16 +51,16 @@ _RUNNING: dict[uuid.UUID, AutopilotOrchestrator] = {}
 def get_llm_provider() -> LLMProvider:
     """Default LLM provider. Overridden in tests via dependency_overrides.
 
-    Production: this returns a real Ollama provider; dev/test returns the
-    MockProvider so tests don't hit the network. For the initial wire-up
-    we default to Mock and let deployments swap it.
+    Returns the real OllamaProvider when OLLAMA_API_KEY is configured
+    (reads ollama_base_url + ollama_model from settings). Falls back to
+    MockProvider otherwise, so dev boxes without credentials and the test
+    suite keep running offline.
     """
     settings = get_settings()
-    if settings.app_env != "production":
-        return MockProvider(response_content=json.dumps({"estimates": []}))
-    # Production wiring deferred to Wave 30 (ollama_provider requires
-    # Ollama API key + model config). For now, still safe to return Mock
-    # so the endpoint is callable — empty estimates yield LEX=0, green.
+    if settings.ollama_api_key:
+        from src.infrastructure.llm.ollama_provider import OllamaProvider
+
+        return OllamaProvider()
     return MockProvider(response_content=json.dumps({"estimates": []}))
 
 
