@@ -4,12 +4,12 @@ Covers both RS256 (mocked JWKS) and HS256 (shared secret) modes,
 plus error paths (expired, wrong aud/iss, missing kid, unknown kid,
 bad signature, JWKS fetch failure).
 """
+
 from __future__ import annotations
 
 import json
 import time
 import uuid
-from datetime import datetime, timezone
 
 import httpx
 import jwt as pyjwt
@@ -19,7 +19,6 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from src.infrastructure.mars.exceptions import MarsAuthError
 from src.infrastructure.mars.jwt_validator import MarsJwtValidator
-
 
 ISSUER = "mars-core"
 AUDIENCE = "mars-module-noise"
@@ -37,10 +36,14 @@ def _make_rsa_keypair() -> tuple[Any, str]:  # noqa: F821
         format=serialization.PrivateFormat.PKCS8,
         encryption_algorithm=serialization.NoEncryption(),
     ).decode()
-    public_pem = private_key.public_key().public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo,
-    ).decode()
+    public_pem = (
+        private_key.public_key()
+        .public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        .decode()
+    )
     return private_pem, public_pem
 
 
@@ -85,9 +88,7 @@ def _make_hs256_token(payload: dict, secret: str = HS_SECRET) -> str:
 
 
 async def test_hs256_valid_token():
-    v = MarsJwtValidator(
-        algorithm="HS256", issuer=ISSUER, audience=AUDIENCE, hs256_secret=HS_SECRET
-    )
+    v = MarsJwtValidator(algorithm="HS256", issuer=ISSUER, audience=AUDIENCE, hs256_secret=HS_SECRET)
     payload = _valid_payload()
     token = _make_hs256_token(payload)
     claims = await v.validate(token)
@@ -98,45 +99,35 @@ async def test_hs256_valid_token():
 
 
 async def test_hs256_expired_token():
-    v = MarsJwtValidator(
-        algorithm="HS256", issuer=ISSUER, audience=AUDIENCE, hs256_secret=HS_SECRET
-    )
+    v = MarsJwtValidator(algorithm="HS256", issuer=ISSUER, audience=AUDIENCE, hs256_secret=HS_SECRET)
     token = _make_hs256_token(_valid_payload(exp=int(time.time()) - 10))
     with pytest.raises(MarsAuthError, match="expired"):
         await v.validate(token)
 
 
 async def test_hs256_wrong_issuer():
-    v = MarsJwtValidator(
-        algorithm="HS256", issuer=ISSUER, audience=AUDIENCE, hs256_secret=HS_SECRET
-    )
+    v = MarsJwtValidator(algorithm="HS256", issuer=ISSUER, audience=AUDIENCE, hs256_secret=HS_SECRET)
     token = _make_hs256_token(_valid_payload(iss="other"))
     with pytest.raises(MarsAuthError, match="issuer mismatch"):
         await v.validate(token)
 
 
 async def test_hs256_wrong_audience():
-    v = MarsJwtValidator(
-        algorithm="HS256", issuer=ISSUER, audience=AUDIENCE, hs256_secret=HS_SECRET
-    )
+    v = MarsJwtValidator(algorithm="HS256", issuer=ISSUER, audience=AUDIENCE, hs256_secret=HS_SECRET)
     token = _make_hs256_token(_valid_payload(aud="other"))
     with pytest.raises(MarsAuthError, match="audience mismatch"):
         await v.validate(token)
 
 
 async def test_hs256_bad_signature():
-    v = MarsJwtValidator(
-        algorithm="HS256", issuer=ISSUER, audience=AUDIENCE, hs256_secret=HS_SECRET
-    )
+    v = MarsJwtValidator(algorithm="HS256", issuer=ISSUER, audience=AUDIENCE, hs256_secret=HS_SECRET)
     token = _make_hs256_token(_valid_payload(), secret="wrong-secret-32chars-xxxxxxxxxxxx")
     with pytest.raises(MarsAuthError, match="signature"):
         await v.validate(token)
 
 
 async def test_hs256_missing_sub():
-    v = MarsJwtValidator(
-        algorithm="HS256", issuer=ISSUER, audience=AUDIENCE, hs256_secret=HS_SECRET
-    )
+    v = MarsJwtValidator(algorithm="HS256", issuer=ISSUER, audience=AUDIENCE, hs256_secret=HS_SECRET)
     payload = _valid_payload()
     del payload["sub"]
     token = _make_hs256_token(payload)
@@ -145,25 +136,19 @@ async def test_hs256_missing_sub():
 
 
 async def test_hs256_malformed_token():
-    v = MarsJwtValidator(
-        algorithm="HS256", issuer=ISSUER, audience=AUDIENCE, hs256_secret=HS_SECRET
-    )
+    v = MarsJwtValidator(algorithm="HS256", issuer=ISSUER, audience=AUDIENCE, hs256_secret=HS_SECRET)
     with pytest.raises(MarsAuthError):
         await v.validate("not.a.jwt")
 
 
 async def test_hs256_empty_token():
-    v = MarsJwtValidator(
-        algorithm="HS256", issuer=ISSUER, audience=AUDIENCE, hs256_secret=HS_SECRET
-    )
+    v = MarsJwtValidator(algorithm="HS256", issuer=ISSUER, audience=AUDIENCE, hs256_secret=HS_SECRET)
     with pytest.raises(MarsAuthError, match="Missing"):
         await v.validate("")
 
 
 async def test_hs256_camelcase_claims_supported():
-    v = MarsJwtValidator(
-        algorithm="HS256", issuer=ISSUER, audience=AUDIENCE, hs256_secret=HS_SECRET
-    )
+    v = MarsJwtValidator(algorithm="HS256", issuer=ISSUER, audience=AUDIENCE, hs256_secret=HS_SECRET)
     payload = {
         "userId": str(uuid.uuid4()),
         "tenantId": str(uuid.uuid4()),

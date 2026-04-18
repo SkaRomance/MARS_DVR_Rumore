@@ -11,6 +11,7 @@ across requests and are closed cleanly during shutdown.
 For tests or alternate deployments, overrides can swap any of these
 via FastAPI's `app.dependency_overrides`.
 """
+
 from __future__ import annotations
 
 import logging
@@ -128,9 +129,7 @@ def get_mars_tenant_resolver(
 
 
 async def require_mars_context(
-    credentials: Annotated[
-        HTTPAuthorizationCredentials | None, Depends(_bearer_scheme)
-    ],
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_scheme)],
     validator: Annotated[MarsJwtValidator, Depends(get_mars_jwt_validator)],
     resolver: Annotated[TenantResolver, Depends(get_mars_tenant_resolver)],
 ) -> MarsContext:

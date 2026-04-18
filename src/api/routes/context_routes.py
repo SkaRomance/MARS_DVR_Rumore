@@ -5,6 +5,7 @@ handles 401/402/503 mapping). The resulting context is scoped to the
 caller's tenant: cross-tenant access is 404, not 403, so existence
 is not leaked.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -72,9 +73,7 @@ async def bootstrap_context(
         ) from exc
     except MarsAuthError as exc:
         await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
     except MarsApiError as exc:
         await session.rollback()
         raise HTTPException(
@@ -163,8 +162,7 @@ async def update_context_status(
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid status '{body.status}'. "
-                   f"Valid: {[s.value for s in NoiseAssessmentContextStatus]}",
+            detail=f"Invalid status '{body.status}'. Valid: {[s.value for s in NoiseAssessmentContextStatus]}",
         ) from exc
 
     try:

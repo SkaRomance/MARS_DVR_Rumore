@@ -3,10 +3,11 @@
 Uses the conftest `client` fixture (AsyncClient wired to the real app
 with SQLite + DB override) + FastAPI dep overrides for MARS layer.
 """
+
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -17,7 +18,6 @@ from src.bootstrap.main import app
 from src.infrastructure.database.models.tenant import Tenant
 from src.infrastructure.mars.client import MarsApiClient
 from src.infrastructure.mars.types import MarsContext
-
 
 PREFIX = "/api/v1/noise"
 
@@ -56,7 +56,7 @@ def _make_mars_client(body: dict) -> MarsApiClient:
 
 
 def _revision_body(doc_id: uuid.UUID, rev_id: uuid.UUID, version: int = 1) -> dict:
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     return {
         "id": str(rev_id),
         "documentId": str(doc_id),
@@ -117,9 +117,7 @@ async def override_mars(seeded_tenant):
 # ── bootstrap ──────────────────────────────────────────────────────
 
 
-async def test_bootstrap_creates_new_context(
-    client: AsyncClient, override_mars, seeded_tenant
-):
+async def test_bootstrap_creates_new_context(client: AsyncClient, override_mars, seeded_tenant):
     doc_id = uuid.uuid4()
     rev_id = uuid.uuid4()
     override_mars(_revision_body(doc_id, rev_id))
@@ -140,9 +138,7 @@ async def test_bootstrap_creates_new_context(
     assert body["dvr_schema_version"] == "1.1.0"
 
 
-async def test_bootstrap_returns_same_row_on_repeat(
-    client: AsyncClient, override_mars
-):
+async def test_bootstrap_returns_same_row_on_repeat(client: AsyncClient, override_mars):
     doc_id = uuid.uuid4()
     rev_id = uuid.uuid4()
     override_mars(_revision_body(doc_id, rev_id))
@@ -188,9 +184,7 @@ async def test_get_context_by_id(client: AsyncClient, override_mars):
     assert r.json()["id"] == ctx_id
 
 
-async def test_get_context_cross_tenant_is_404(
-    client: AsyncClient, override_mars, seeded_tenant, db_session
-):
+async def test_get_context_cross_tenant_is_404(client: AsyncClient, override_mars, seeded_tenant, db_session):
     """A context belonging to tenant X returns 404 when queried by tenant Y."""
     from src.infrastructure.database.models.noise_assessment_context import (
         NoiseAssessmentContext,
@@ -301,9 +295,7 @@ async def test_update_status_invalid_returns_422(client: AsyncClient, override_m
     assert r.status_code == 422
 
 
-async def test_get_context_by_dvr_404_when_missing(
-    client: AsyncClient, override_mars
-):
+async def test_get_context_by_dvr_404_when_missing(client: AsyncClient, override_mars):
     override_mars({})
     r = await client.get(f"{PREFIX}/contexts/by-dvr/{uuid.uuid4()}")
     assert r.status_code == 404

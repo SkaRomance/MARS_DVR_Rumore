@@ -3,13 +3,12 @@
 Uses a dict-backed fake cache and an httpx.MockTransport-backed
 MarsApiClient — no Redis, no network.
 """
+
 from __future__ import annotations
 
 import json
 import time
 import uuid
-from datetime import datetime, timezone
-from typing import Any
 
 import httpx
 import pytest
@@ -18,7 +17,6 @@ from src.infrastructure.mars.client import MarsApiClient
 from src.infrastructure.mars.exceptions import MarsAuthError
 from src.infrastructure.mars.jwt_validator import MarsJwtClaims
 from src.infrastructure.mars.tenant_resolver import TenantResolver
-
 
 USER_ID = uuid.uuid4()
 TENANT_ID = uuid.uuid4()
@@ -91,9 +89,7 @@ async def test_jwt_has_tenant_skips_cache_and_network():
     client = _mars_client(handler)
     try:
         resolver = TenantResolver(cache=cache, mars_client=client)
-        ctx = await resolver.resolve(
-            _claims(tenant_id=TENANT_ID, modules=["noise"]), TOKEN
-        )
+        ctx = await resolver.resolve(_claims(tenant_id=TENANT_ID, modules=["noise"]), TOKEN)
         assert ctx.tenant_id == TENANT_ID
         assert ctx.user_id == USER_ID
         assert ctx.access_token == TOKEN

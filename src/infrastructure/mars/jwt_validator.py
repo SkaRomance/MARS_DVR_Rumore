@@ -22,6 +22,7 @@ Returns a `MarsJwtClaims` dataclass. Any validation failure raises
 `MarsAuthError` with an actionable message — callers typically
 translate this to HTTP 401.
 """
+
 from __future__ import annotations
 
 import logging

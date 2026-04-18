@@ -18,6 +18,7 @@ Snapshot caching rationale:
 Status lifecycle:
   bootstrapped -> in_progress -> completed | abandoned
 """
+
 from __future__ import annotations
 
 import enum
@@ -31,7 +32,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.infrastructure.database.base import Base
 
 
-class NoiseAssessmentContextStatus(str, enum.Enum):
+class NoiseAssessmentContextStatus(enum.StrEnum):
     """Lifecycle states for a Rumore assessment session."""
 
     bootstrapped = "bootstrapped"
@@ -46,14 +47,14 @@ class NoiseAssessmentContext(Base):
     __tablename__ = "noise_assessment_context"
     __table_args__ = (
         UniqueConstraint(
-            "tenant_id", "mars_dvr_document_id", "mars_revision_id",
+            "tenant_id",
+            "mars_dvr_document_id",
+            "mars_revision_id",
             name="uq_noise_assessment_context_tenant_doc_rev",
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("tenant.id", ondelete="CASCADE"),
@@ -61,49 +62,65 @@ class NoiseAssessmentContext(Base):
         index=True,
     )
     user_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True, index=True,
+        UUID(as_uuid=True),
+        nullable=True,
+        index=True,
         comment="MARS user id of the consultant who opened the context",
     )
 
     mars_dvr_document_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, index=True,
+        UUID(as_uuid=True),
+        nullable=False,
+        index=True,
         comment="MARS DVR document UUID — stable across revisions",
     )
     mars_revision_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, index=True,
+        UUID(as_uuid=True),
+        nullable=False,
+        index=True,
         comment="MARS DVR revision UUID — one revision per snapshot",
     )
     mars_document_version: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1,
+        Integer,
+        nullable=False,
+        default=1,
         comment="Revision version number as reported by MARS",
     )
 
     dvr_snapshot: Mapped[dict | None] = mapped_column(
-        JSONB, nullable=True,
+        JSONB,
+        nullable=True,
         comment="Full DVR snapshot from MARS (schema v1.0 or v1.1). "
-                "Includes work_phases, phase_equipments, company_data, etc.",
+        "Includes work_phases, phase_equipments, company_data, etc.",
     )
     dvr_schema_version: Mapped[str | None] = mapped_column(
-        String(10), nullable=True,
+        String(10),
+        nullable=True,
         comment="Schema version of the cached snapshot (1.0.0 / 1.1.0)",
     )
 
     status: Mapped[str] = mapped_column(
-        String(20), nullable=False,
+        String(20),
+        nullable=False,
         default=NoiseAssessmentContextStatus.bootstrapped.value,
         index=True,
     )
     notes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
 
     last_synced_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True,
+        DateTime(timezone=True),
+        nullable=True,
         comment="When dvr_snapshot was last fetched from MARS",
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False,
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(),
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
         nullable=False,
     )
 
