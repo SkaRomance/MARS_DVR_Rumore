@@ -19,13 +19,13 @@ A cancellation token (`request_cancel()`) aborts between stages.
 This is the skeleton; future stages get filled in by plugging in agents
 at the marked positions without touching the SSE wiring.
 """
+
 from __future__ import annotations
 
-import asyncio
 import logging
 import uuid
-from datetime import datetime, timezone
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -78,10 +78,8 @@ class AutopilotOrchestrator:
     def request_cancel(self) -> None:
         self._cancelled = True
 
-    async def run(
-        self, ctx: AutopilotRunContext
-    ) -> AsyncGenerator[AutopilotEvent, None]:
-        start_ts = datetime.now(timezone.utc)
+    async def run(self, ctx: AutopilotRunContext) -> AsyncGenerator[AutopilotEvent, None]:
+        start_ts = datetime.now(UTC)
         progress = 0
         yield self._event(AutopilotEventKind.started, AutopilotStep.initialize, progress)
 
@@ -129,9 +127,7 @@ class AutopilotOrchestrator:
                 message="Stima LAeq + durata per fase",
             )
             try:
-                ctx.exposure_estimates = await self._exposure_agent.estimate(
-                    ctx.phase_inputs
-                )
+                ctx.exposure_estimates = await self._exposure_agent.estimate(ctx.phase_inputs)
             except ExposureEstimatorError as exc:
                 yield self._event(
                     AutopilotEventKind.step_failed,
@@ -190,12 +186,16 @@ class AutopilotOrchestrator:
                 (AutopilotStep.narrative, "Generazione narrativa DVR (stub)"),
             ]:
                 yield self._event(
-                    AutopilotEventKind.step_started, step_stub, progress,
+                    AutopilotEventKind.step_started,
+                    step_stub,
+                    progress,
                     message=label,
                 )
                 progress += _STEP_WEIGHTS[step_stub]
                 yield self._event(
-                    AutopilotEventKind.step_completed, step_stub, progress,
+                    AutopilotEventKind.step_completed,
+                    step_stub,
+                    progress,
                     payload={"note": f"{step_stub.value} pending future wave"},
                 )
                 if self._check_cancel():
@@ -219,11 +219,8 @@ class AutopilotOrchestrator:
             )
 
             # ── done ──
-            duration_s = (datetime.now(timezone.utc) - start_ts).total_seconds()
-            confidence = (
-                sum(e.confidence for e in ctx.exposure_estimates)
-                / max(len(ctx.exposure_estimates), 1)
-            )
+            duration_s = (datetime.now(UTC) - start_ts).total_seconds()
+            confidence = sum(e.confidence for e in ctx.exposure_estimates) / max(len(ctx.exposure_estimates), 1)
             yield self._event(
                 AutopilotEventKind.completed,
                 AutopilotStep.done,
@@ -256,9 +253,7 @@ class AutopilotOrchestrator:
     def _parse_dvr(snapshot: dict) -> list[PhaseInput]:
         """Extract PhaseInput list from DVR snapshot (v1.0 or v1.1)."""
         phases_raw = snapshot.get("workPhases") or snapshot.get("work_phases") or []
-        equipments_raw = (
-            snapshot.get("phaseEquipments") or snapshot.get("phase_equipments") or []
-        )
+        equipments_raw = snapshot.get("phaseEquipments") or snapshot.get("phase_equipments") or []
         # Group equipments by phase_id for efficient lookup
         equipments_by_phase: dict[str, list[dict]] = {}
         for eq in equipments_raw:
@@ -281,9 +276,7 @@ class AutopilotOrchestrator:
             )
         return inputs
 
-    async def _persist_estimates(
-        self, ctx: AutopilotRunContext
-    ) -> list[uuid.UUID]:
+    async def _persist_estimates(self, ctx: AutopilotRunContext) -> list[uuid.UUID]:
         """Write exposure estimates as pending AISuggestion rows."""
         ids: list[uuid.UUID] = []
         for est in ctx.exposure_estimates:
@@ -303,7 +296,10 @@ class AutopilotOrchestrator:
     @staticmethod
     def _estimate_title(est: PhaseExposureEstimate) -> str:
         band_icon = {
-            "green": "", "yellow": "⚠ ", "orange": "⚠⚠ ", "red": "🔴 ",
+            "green": "",
+            "yellow": "⚠ ",
+            "orange": "⚠⚠ ",
+            "red": "🔴 ",
         }.get("green", "")
         return (
             f"{band_icon}{est.phase_name}"
@@ -344,5 +340,5 @@ class AutopilotOrchestrator:
             message=message,
             payload=payload,
             progress_percent=max(0, min(100, progress)),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )

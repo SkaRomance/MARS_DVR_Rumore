@@ -18,10 +18,12 @@ Supported operations:
 All operations are tenant-scoped: cross-tenant access raises
 SuggestionNotFoundError (caller maps to 404 — don't leak existence).
 """
+
 from __future__ import annotations
 
 import logging
 import uuid
+from datetime import UTC
 from typing import Any, Literal
 
 from sqlalchemy import desc, select
@@ -72,9 +74,7 @@ class SuggestionServiceV2:
         rows = result.scalars().all()
         return [self._to_dict(r) for r in rows]
 
-    async def get(
-        self, *, suggestion_id: uuid.UUID, tenant_id: uuid.UUID
-    ) -> AISuggestion:
+    async def get(self, *, suggestion_id: uuid.UUID, tenant_id: uuid.UUID) -> AISuggestion:
         stmt = select(AISuggestion).where(
             AISuggestion.id == suggestion_id,
             AISuggestion.tenant_id == tenant_id,
@@ -82,9 +82,7 @@ class SuggestionServiceV2:
         result = await self.session.execute(stmt)
         row = result.scalar_one_or_none()
         if row is None:
-            raise SuggestionNotFoundError(
-                f"Suggestion {suggestion_id} not found in tenant {tenant_id}"
-            )
+            raise SuggestionNotFoundError(f"Suggestion {suggestion_id} not found in tenant {tenant_id}")
         return row
 
     # ── writes ─────────────────────────────────────────────────────
@@ -128,9 +126,7 @@ class SuggestionServiceV2:
     ) -> dict[str, Any]:
         row = await self.get(suggestion_id=suggestion_id, tenant_id=tenant_id)
         if row.status not in (AISuggestionStatus.PENDING, AISuggestionStatus.MODIFIED):
-            raise InvalidStatusTransitionError(
-                f"Cannot approve suggestion in status '{row.status}'"
-            )
+            raise InvalidStatusTransitionError(f"Cannot approve suggestion in status '{row.status}'")
 
         if edited_payload is not None:
             row.content = edited_payload
@@ -139,8 +135,9 @@ class SuggestionServiceV2:
             # the consultant edited-and-approved, not just approved as-is.
         row.status = AISuggestionStatus.APPROVED
         row.approved_by = approved_by
-        from datetime import datetime, timezone
-        row.approved_at = datetime.now(timezone.utc)
+        from datetime import datetime
+
+        row.approved_at = datetime.now(UTC)
 
         await self.session.flush()
         await self.session.refresh(row)
@@ -155,9 +152,7 @@ class SuggestionServiceV2:
     ) -> dict[str, Any]:
         row = await self.get(suggestion_id=suggestion_id, tenant_id=tenant_id)
         if row.status not in (AISuggestionStatus.PENDING, AISuggestionStatus.MODIFIED):
-            raise InvalidStatusTransitionError(
-                f"Cannot reject suggestion in status '{row.status}'"
-            )
+            raise InvalidStatusTransitionError(f"Cannot reject suggestion in status '{row.status}'")
         row.status = AISuggestionStatus.REJECTED
         row.rejection_reason = reason
         await self.session.flush()
@@ -190,10 +185,7 @@ class SuggestionServiceV2:
                 failed.append({"id": str(sid), "reason": "not_found"})
                 continue
 
-            if min_confidence is not None and (
-                row.confidence_score is None
-                or row.confidence_score < min_confidence
-            ):
+            if min_confidence is not None and (row.confidence_score is None or row.confidence_score < min_confidence):
                 failed.append({"id": str(sid), "reason": "below_confidence_threshold"})
                 continue
 

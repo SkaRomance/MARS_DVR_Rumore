@@ -13,11 +13,12 @@ Boundaries:
 - Does NOT commit by itself; the route handler / use-case commits so
   transaction boundaries align with HTTP request scope.
 """
+
 from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -71,9 +72,7 @@ class NoiseAssessmentContextService:
         snapshot: MarsDvrRevisionResponse | None = None
         if mars_revision_id is None or force_sync:
             try:
-                snapshot = await self.client.get_dvr_revision(
-                    access_token, mars_dvr_document_id, mars_revision_id
-                )
+                snapshot = await self.client.get_dvr_revision(access_token, mars_dvr_document_id, mars_revision_id)
                 mars_revision_id = snapshot.id
             except MarsNotFoundError:
                 raise
@@ -95,9 +94,7 @@ class NoiseAssessmentContextService:
 
         if snapshot is None:
             # Need to fetch snapshot before we can create/refresh
-            snapshot = await self.client.get_dvr_revision(
-                access_token, mars_dvr_document_id, mars_revision_id
-            )
+            snapshot = await self.client.get_dvr_revision(access_token, mars_dvr_document_id, mars_revision_id)
 
         if existing is not None:
             self._apply_snapshot(existing, snapshot, user_id=user_id)
@@ -115,7 +112,7 @@ class NoiseAssessmentContextService:
             dvr_snapshot=snapshot.snapshot.model_dump(mode="json", by_alias=True),
             dvr_schema_version=snapshot.snapshot.schema_version,
             status=NoiseAssessmentContextStatus.bootstrapped.value,
-            last_synced_at=datetime.now(timezone.utc),
+            last_synced_at=datetime.now(UTC),
         )
         self.session.add(ctx)
         await self.session.flush()
@@ -144,9 +141,7 @@ class NoiseAssessmentContextService:
             )
         return ctx
 
-    async def get_by_id(
-        self, *, context_id: uuid.UUID, tenant_id: uuid.UUID
-    ) -> NoiseAssessmentContext:
+    async def get_by_id(self, *, context_id: uuid.UUID, tenant_id: uuid.UUID) -> NoiseAssessmentContext:
         """Fetch by id, scoped to tenant (404 for cross-tenant access)."""
         stmt = (
             select(NoiseAssessmentContext)
@@ -156,9 +151,7 @@ class NoiseAssessmentContextService:
         result = await self.session.execute(stmt)
         ctx = result.scalar_one_or_none()
         if ctx is None:
-            raise NoiseAssessmentContextNotFoundError(
-                f"Context {context_id} not found in tenant {tenant_id}"
-            )
+            raise NoiseAssessmentContextNotFoundError(f"Context {context_id} not found in tenant {tenant_id}")
         return ctx
 
     async def list_by_tenant(
@@ -219,8 +212,8 @@ class NoiseAssessmentContextService:
             return True
         synced = ctx.last_synced_at
         if synced.tzinfo is None:
-            synced = synced.replace(tzinfo=timezone.utc)
-        return datetime.now(timezone.utc) - synced > self._stale_after
+            synced = synced.replace(tzinfo=UTC)
+        return datetime.now(UTC) - synced > self._stale_after
 
     @staticmethod
     def _apply_snapshot(
@@ -232,6 +225,6 @@ class NoiseAssessmentContextService:
         ctx.mars_document_version = snapshot.version
         ctx.dvr_snapshot = snapshot.snapshot.model_dump(mode="json", by_alias=True)
         ctx.dvr_schema_version = snapshot.snapshot.schema_version
-        ctx.last_synced_at = datetime.now(timezone.utc)
+        ctx.last_synced_at = datetime.now(UTC)
         if user_id is not None:
             ctx.user_id = user_id

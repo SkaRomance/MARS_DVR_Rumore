@@ -4,13 +4,12 @@ Builds a minimal FastAPI app per test, overrides the validator / resolver
 deps with stubs, and hits the route via TestClient to verify HTTP
 semantics (401 / 402 / 503 etc.).
 """
+
 from __future__ import annotations
 
 import time
 import uuid
 
-import httpx
-import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
@@ -21,7 +20,6 @@ from src.api.dependencies.mars import (
     require_mars_context,
     require_module_access,
 )
-from src.infrastructure.mars.client import MarsApiClient
 from src.infrastructure.mars.exceptions import (
     MarsApiError,
     MarsAuthError,
@@ -29,7 +27,6 @@ from src.infrastructure.mars.exceptions import (
 )
 from src.infrastructure.mars.jwt_validator import MarsJwtClaims
 from src.infrastructure.mars.types import MarsContext
-
 
 USER_ID = uuid.uuid4()
 TENANT_ID = uuid.uuid4()
@@ -224,9 +221,7 @@ def test_module_access_not_in_jwt_mars_says_enabled_passes():
     app = _make_app(
         validator=StubValidator(claims=_make_claims()),
         resolver=StubResolver(context=_make_context(modules=["noise"])),
-        client=StubClient(
-            verify_result=MarsModuleVerifyResponse(enabled=True, moduleKey="chemical")
-        ),
+        client=StubClient(verify_result=MarsModuleVerifyResponse(enabled=True, moduleKey="chemical")),
         extra_router=router,
     )
     with TestClient(app) as client:
@@ -246,9 +241,7 @@ def test_module_access_payment_required_returns_402():
     app = _make_app(
         validator=StubValidator(claims=_make_claims()),
         resolver=StubResolver(context=_make_context(modules=["noise"])),
-        client=StubClient(
-            verify_error=MarsPaymentRequiredError("not purchased", status_code=402)
-        ),
+        client=StubClient(verify_error=MarsPaymentRequiredError("not purchased", status_code=402)),
         extra_router=router,
     )
     with TestClient(app) as client:
@@ -272,9 +265,7 @@ def test_module_access_mars_says_disabled_returns_402():
         validator=StubValidator(claims=_make_claims()),
         resolver=StubResolver(context=_make_context(modules=["noise"])),
         client=StubClient(
-            verify_result=MarsModuleVerifyResponse(
-                enabled=False, moduleKey="x", reason="subscription expired"
-            )
+            verify_result=MarsModuleVerifyResponse(enabled=False, moduleKey="x", reason="subscription expired")
         ),
         extra_router=router,
     )
@@ -296,9 +287,7 @@ def test_module_access_upstream_failure_returns_503():
     app = _make_app(
         validator=StubValidator(claims=_make_claims()),
         resolver=StubResolver(context=_make_context(modules=["noise"])),
-        client=StubClient(
-            verify_error=MarsApiError("boom", status_code=500)
-        ),
+        client=StubClient(verify_error=MarsApiError("boom", status_code=500)),
         extra_router=router,
     )
     with TestClient(app) as client:

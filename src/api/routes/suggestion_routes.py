@@ -1,4 +1,5 @@
 """V2 suggestion routes — context-scoped, matching Wave 29 frontend contract."""
+
 from __future__ import annotations
 
 import uuid

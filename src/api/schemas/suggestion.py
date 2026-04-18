@@ -1,4 +1,5 @@
 """Pydantic schemas for V2 suggestion endpoints (Wave 27)."""
+
 from __future__ import annotations
 
 import uuid
@@ -14,9 +15,7 @@ class SuggestionApproveRequest(BaseModel):
 
 
 class SuggestionRejectRequest(BaseModel):
-    reason: str | None = Field(
-        None, description="Optional human-readable rejection reason."
-    )
+    reason: str | None = Field(None, description="Optional human-readable rejection reason.")
 
 
 class SuggestionBulkRequest(BaseModel):
@@ -28,9 +27,7 @@ class SuggestionBulkRequest(BaseModel):
         le=1.0,
         description="For approve: only process suggestions with confidence ≥ this.",
     )
-    reason: str | None = Field(
-        None, description="For reject: applied to every rejected suggestion."
-    )
+    reason: str | None = Field(None, description="For reject: applied to every rejected suggestion.")
 
 
 class SuggestionBulkResponse(BaseModel):

@@ -1,4 +1,5 @@
 """API tests for /api/v1/noise/autopilot/* (SSE run + status + cancel)."""
+
 from __future__ import annotations
 
 import json
@@ -41,12 +42,11 @@ def _dvr_snapshot(n_phases=2) -> dict:
     return {
         "schemaVersion": "1.1.0",
         "companyData": {"vatNumber": "IT0", "legalName": "ACME"},
-        "workPhases": [
-            {"id": f"ph-{i}", "name": f"P{i}", "description": ""}
-            for i in range(1, n_phases + 1)
-        ],
+        "workPhases": [{"id": f"ph-{i}", "name": f"P{i}", "description": ""} for i in range(1, n_phases + 1)],
         "phaseEquipments": [],
-        "risks": [], "actions": [], "trainings": [],
+        "risks": [],
+        "actions": [],
+        "trainings": [],
         "module_extensions": {},
     }
 
@@ -97,11 +97,10 @@ def mars_override(seeded):
 @pytest.fixture
 def llm_override():
     def _set(estimates: list[dict]):
-        provider = MockProvider(
-            response_content=json.dumps({"estimates": estimates})
-        )
+        provider = MockProvider(response_content=json.dumps({"estimates": estimates}))
         app.dependency_overrides[get_llm_provider] = lambda: provider
         return provider
+
     yield _set
     app.dependency_overrides.pop(get_llm_provider, None)
 
@@ -123,22 +122,34 @@ def _parse_sse_frames(body: str) -> list[dict]:
 # ── POST /run ─────────────────────────────────────────────────────
 
 
-async def test_run_streams_events_to_completion(
-    client: AsyncClient, seeded, mars_override, llm_override
-):
+async def test_run_streams_events_to_completion(client: AsyncClient, seeded, mars_override, llm_override):
     _, ctx = seeded
-    llm_override([
-        {
-            "phase_id": "ph-1", "phase_name": "P1", "laeq_db": 85.0,
-            "duration_hours": 4.0, "k_tone_db": 0, "k_imp_db": 0,
-            "confidence": 0.8, "reasoning": "ok", "data_gaps": [],
-        },
-        {
-            "phase_id": "ph-2", "phase_name": "P2", "laeq_db": 90.0,
-            "duration_hours": 2.0, "k_tone_db": 0, "k_imp_db": 0,
-            "confidence": 0.7, "reasoning": "ok", "data_gaps": [],
-        },
-    ])
+    llm_override(
+        [
+            {
+                "phase_id": "ph-1",
+                "phase_name": "P1",
+                "laeq_db": 85.0,
+                "duration_hours": 4.0,
+                "k_tone_db": 0,
+                "k_imp_db": 0,
+                "confidence": 0.8,
+                "reasoning": "ok",
+                "data_gaps": [],
+            },
+            {
+                "phase_id": "ph-2",
+                "phase_name": "P2",
+                "laeq_db": 90.0,
+                "duration_hours": 2.0,
+                "k_tone_db": 0,
+                "k_imp_db": 0,
+                "confidence": 0.7,
+                "reasoning": "ok",
+                "data_gaps": [],
+            },
+        ]
+    )
 
     r = await client.post(f"{PREFIX}/autopilot/{ctx.id}/run")
     assert r.status_code == 200
@@ -155,9 +166,7 @@ async def test_run_streams_events_to_completion(
     assert final["payload"]["suggestions_count"] == 2
 
 
-async def test_run_empty_snapshot_still_completes(
-    client: AsyncClient, db_session, mars_override, llm_override
-):
+async def test_run_empty_snapshot_still_completes(client: AsyncClient, db_session, mars_override, llm_override):
     # Seed a context WITH snapshot but zero phases
     tenant = Tenant(id=uuid.uuid4(), name="T", slug=f"t-{uuid.uuid4().hex[:8]}")
     db_session.add(tenant)
@@ -186,9 +195,7 @@ async def test_run_empty_snapshot_still_completes(
     assert final["payload"]["risk_band"] == "green"
 
 
-async def test_run_missing_snapshot_returns_409(
-    client: AsyncClient, db_session, mars_override, llm_override
-):
+async def test_run_missing_snapshot_returns_409(client: AsyncClient, db_session, mars_override, llm_override):
     ctx = NoiseAssessmentContext(
         id=uuid.uuid4(),
         tenant_id=mars_override.tenant_id,
@@ -208,17 +215,13 @@ async def test_run_missing_snapshot_returns_409(
     assert "snapshot" in r.json()["detail"].lower()
 
 
-async def test_run_unknown_context_returns_404(
-    client: AsyncClient, mars_override, llm_override
-):
+async def test_run_unknown_context_returns_404(client: AsyncClient, mars_override, llm_override):
     llm_override([])
     r = await client.post(f"{PREFIX}/autopilot/{uuid.uuid4()}/run")
     assert r.status_code == 404
 
 
-async def test_run_cross_tenant_returns_404(
-    client: AsyncClient, db_session, seeded, llm_override
-):
+async def test_run_cross_tenant_returns_404(client: AsyncClient, db_session, seeded, llm_override):
     """Caller from tenant A tries to run autopilot on tenant B's context."""
     _, ctx = seeded
     # Set override to a DIFFERENT tenant
@@ -252,9 +255,7 @@ async def test_run_no_auth_returns_401(client: AsyncClient, seeded, llm_override
 # ── GET /status ────────────────────────────────────────────────────
 
 
-async def test_status_returns_current_state(
-    client: AsyncClient, seeded, mars_override
-):
+async def test_status_returns_current_state(client: AsyncClient, seeded, mars_override):
     _, ctx = seeded
     r = await client.get(f"{PREFIX}/autopilot/{ctx.id}/status")
     assert r.status_code == 200
@@ -265,14 +266,9 @@ async def test_status_returns_current_state(
     assert body["suggestions_count"] == 0
 
 
-async def test_status_counts_pending_suggestions(
-    client: AsyncClient, db_session, seeded, mars_override
-):
+async def test_status_counts_pending_suggestions(client: AsyncClient, db_session, seeded, mars_override):
     tenant, ctx = seeded
     # Seed 3 suggestions: 2 pending + 1 approved
-    from src.infrastructure.database.models.ai_suggestion import (
-        AISuggestionStatus,
-    )
 
     for status_val in ("pending", "pending", "approved"):
         db_session.add(
@@ -294,9 +290,7 @@ async def test_status_counts_pending_suggestions(
     assert body["pending_count"] == 2
 
 
-async def test_status_unknown_context_returns_404(
-    client: AsyncClient, mars_override
-):
+async def test_status_unknown_context_returns_404(client: AsyncClient, mars_override):
     r = await client.get(f"{PREFIX}/autopilot/{uuid.uuid4()}/status")
     assert r.status_code == 404
 
@@ -304,9 +298,7 @@ async def test_status_unknown_context_returns_404(
 # ── POST /cancel ───────────────────────────────────────────────────
 
 
-async def test_cancel_when_not_running_returns_noop(
-    client: AsyncClient, seeded, mars_override
-):
+async def test_cancel_when_not_running_returns_noop(client: AsyncClient, seeded, mars_override):
     _, ctx = seeded
     r = await client.post(f"{PREFIX}/autopilot/{ctx.id}/cancel")
     assert r.status_code == 200

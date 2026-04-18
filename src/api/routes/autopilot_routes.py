@@ -9,9 +9,9 @@ For single-worker deploys this is sufficient; a future Redis-backed
 registry is needed for multi-worker horizontal scaling — marked TODO
 at the dict where the registry lives.
 """
+
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import uuid
@@ -76,16 +76,13 @@ async def run_autopilot(
     llm: Annotated[LLMProvider, Depends(get_llm_provider)],
 ) -> StreamingResponse:
     # Resolve context tenant-scoped
-    from src.api.dependencies.mars import get_mars_client
 
     # Build a MarsApiClient inline to pass to context service — but we
     # don't actually need network here since we use the cached snapshot
     # on the row, so a null transport is fine.
     ctx_service = NoiseAssessmentContextService(session, _noop_mars_client())
     try:
-        ctx_row = await ctx_service.get_by_id(
-            context_id=context_id, tenant_id=mars_ctx.tenant_id
-        )
+        ctx_row = await ctx_service.get_by_id(context_id=context_id, tenant_id=mars_ctx.tenant_id)
     except NoiseAssessmentContextNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -145,17 +142,13 @@ async def autopilot_status(
 ) -> dict[str, Any]:
     ctx_service = NoiseAssessmentContextService(session, _noop_mars_client())
     try:
-        ctx_row = await ctx_service.get_by_id(
-            context_id=context_id, tenant_id=mars_ctx.tenant_id
-        )
+        ctx_row = await ctx_service.get_by_id(context_id=context_id, tenant_id=mars_ctx.tenant_id)
     except NoiseAssessmentContextNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     running = context_id in _RUNNING
     svc = SuggestionServiceV2(session)
-    suggestions = await svc.list_by_context(
-        context_id=context_id, tenant_id=mars_ctx.tenant_id
-    )
+    suggestions = await svc.list_by_context(context_id=context_id, tenant_id=mars_ctx.tenant_id)
     return {
         "context_id": str(context_id),
         "is_running": running,

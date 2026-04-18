@@ -1,4 +1,5 @@
 """Pydantic schemas for NoiseAssessmentContext endpoints."""
+
 from __future__ import annotations
 
 import uuid
@@ -12,12 +13,12 @@ class ContextBootstrapRequest(BaseModel):
     """POST /contexts/bootstrap body."""
 
     mars_dvr_document_id: uuid.UUID = Field(
-        ..., description="MARS DVR document UUID (stable across revisions)",
+        ...,
+        description="MARS DVR document UUID (stable across revisions)",
     )
     mars_revision_id: uuid.UUID | None = Field(
         None,
-        description="Optional: specific revision. When omitted, the latest "
-                    "published revision is used.",
+        description="Optional: specific revision. When omitted, the latest published revision is used.",
     )
     force_sync: bool = Field(
         False,

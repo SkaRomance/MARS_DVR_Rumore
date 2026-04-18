@@ -1,4 +1,5 @@
 """Integration tests for SuggestionServiceV2 (SQLite via conftest)."""
+
 from __future__ import annotations
 
 import uuid
@@ -95,12 +96,8 @@ async def test_list_by_context_filters_by_status(db_session, tenant, context):
     await _seed(db_session, context=context, tenant=tenant, status=AISuggestionStatus.REJECTED)
 
     all_items = await svc.list_by_context(context_id=context.id, tenant_id=tenant.id)
-    pending_only = await svc.list_by_context(
-        context_id=context.id, tenant_id=tenant.id, status="pending"
-    )
-    approved_only = await svc.list_by_context(
-        context_id=context.id, tenant_id=tenant.id, status="approved"
-    )
+    pending_only = await svc.list_by_context(context_id=context.id, tenant_id=tenant.id, status="pending")
+    approved_only = await svc.list_by_context(context_id=context.id, tenant_id=tenant.id, status="approved")
 
     assert len(all_items) == 3
     assert len(pending_only) == 1
@@ -131,9 +128,7 @@ async def test_approve_pending(db_session, tenant, context):
     svc = SuggestionServiceV2(db_session)
     row = await _seed(db_session, context=context, tenant=tenant)
 
-    result = await svc.approve(
-        suggestion_id=row.id, tenant_id=tenant.id, approved_by="consultant@example.com"
-    )
+    result = await svc.approve(suggestion_id=row.id, tenant_id=tenant.id, approved_by="consultant@example.com")
     assert result["status"] == AISuggestionStatus.APPROVED
     assert result["approved_by"] == "consultant@example.com"
     assert result["approved_at"] is not None
@@ -144,9 +139,7 @@ async def test_approve_with_edited_payload(db_session, tenant, context):
     row = await _seed(db_session, context=context, tenant=tenant)
 
     edited = {"laeq_db": 87.5, "duration_hours": 3.0, "notes": "corrected"}
-    result = await svc.approve(
-        suggestion_id=row.id, tenant_id=tenant.id, edited_payload=edited
-    )
+    result = await svc.approve(suggestion_id=row.id, tenant_id=tenant.id, edited_payload=edited)
     assert result["payload_json"]["laeq_db"] == 87.5
     assert result["payload_json"]["notes"] == "corrected"
     assert result["status"] == AISuggestionStatus.APPROVED
@@ -154,9 +147,7 @@ async def test_approve_with_edited_payload(db_session, tenant, context):
 
 async def test_approve_already_resolved_raises(db_session, tenant, context):
     svc = SuggestionServiceV2(db_session)
-    row = await _seed(
-        db_session, context=context, tenant=tenant, status=AISuggestionStatus.APPROVED
-    )
+    row = await _seed(db_session, context=context, tenant=tenant, status=AISuggestionStatus.APPROVED)
     with pytest.raises(InvalidStatusTransitionError):
         await svc.approve(suggestion_id=row.id, tenant_id=tenant.id)
 
@@ -179,18 +170,14 @@ async def test_reject_with_reason(db_session, tenant, context):
     svc = SuggestionServiceV2(db_session)
     row = await _seed(db_session, context=context, tenant=tenant)
 
-    result = await svc.reject(
-        suggestion_id=row.id, tenant_id=tenant.id, reason="Fase non applicabile"
-    )
+    result = await svc.reject(suggestion_id=row.id, tenant_id=tenant.id, reason="Fase non applicabile")
     assert result["status"] == AISuggestionStatus.REJECTED
     assert result["rejection_reason"] == "Fase non applicabile"
 
 
 async def test_reject_already_approved_raises(db_session, tenant, context):
     svc = SuggestionServiceV2(db_session)
-    row = await _seed(
-        db_session, context=context, tenant=tenant, status=AISuggestionStatus.APPROVED
-    )
+    row = await _seed(db_session, context=context, tenant=tenant, status=AISuggestionStatus.APPROVED)
     with pytest.raises(InvalidStatusTransitionError):
         await svc.reject(suggestion_id=row.id, tenant_id=tenant.id)
 
@@ -200,14 +187,10 @@ async def test_reject_already_approved_raises(db_session, tenant, context):
 
 async def test_bulk_approve_all(db_session, tenant, context):
     svc = SuggestionServiceV2(db_session)
-    rows = [
-        await _seed(db_session, context=context, tenant=tenant) for _ in range(3)
-    ]
+    rows = [await _seed(db_session, context=context, tenant=tenant) for _ in range(3)]
     ids = [r.id for r in rows]
 
-    result = await svc.bulk_action(
-        suggestion_ids=ids, tenant_id=tenant.id, action="approve"
-    )
+    result = await svc.bulk_action(suggestion_ids=ids, tenant_id=tenant.id, action="approve")
     assert result["processed"] == 3
     assert result["total_requested"] == 3
     assert result["failed"] == []
@@ -215,12 +198,8 @@ async def test_bulk_approve_all(db_session, tenant, context):
 
 async def test_bulk_approve_filters_by_confidence(db_session, tenant, context):
     svc = SuggestionServiceV2(db_session)
-    high = await _seed(
-        db_session, context=context, tenant=tenant, confidence_score=0.9
-    )
-    low = await _seed(
-        db_session, context=context, tenant=tenant, confidence_score=0.4
-    )
+    high = await _seed(db_session, context=context, tenant=tenant, confidence_score=0.9)
+    low = await _seed(db_session, context=context, tenant=tenant, confidence_score=0.4)
 
     result = await svc.bulk_action(
         suggestion_ids=[high.id, low.id],
@@ -238,9 +217,7 @@ async def test_bulk_handles_not_found(db_session, tenant, context):
     valid = await _seed(db_session, context=context, tenant=tenant)
     bogus = uuid.uuid4()
 
-    result = await svc.bulk_action(
-        suggestion_ids=[valid.id, bogus], tenant_id=tenant.id, action="approve"
-    )
+    result = await svc.bulk_action(suggestion_ids=[valid.id, bogus], tenant_id=tenant.id, action="approve")
     assert result["processed"] == 1
     assert len(result["failed"]) == 1
     assert result["failed"][0]["reason"] == "not_found"
@@ -249,9 +226,7 @@ async def test_bulk_handles_not_found(db_session, tenant, context):
 async def test_bulk_handles_already_resolved(db_session, tenant, context):
     svc = SuggestionServiceV2(db_session)
     pending = await _seed(db_session, context=context, tenant=tenant)
-    already_approved = await _seed(
-        db_session, context=context, tenant=tenant, status=AISuggestionStatus.APPROVED
-    )
+    already_approved = await _seed(db_session, context=context, tenant=tenant, status=AISuggestionStatus.APPROVED)
 
     result = await svc.bulk_action(
         suggestion_ids=[pending.id, already_approved.id],
@@ -277,9 +252,20 @@ async def test_response_shape_matches_frontend_contract(db_session, tenant, cont
     )
     # Frontend (Wave 29) expects exactly these keys
     expected_keys = {
-        "id", "tenant_id", "context_id", "suggestion_type", "title",
-        "payload_json", "confidence", "risk_band", "priority", "status",
-        "approved_by", "approved_at", "rejection_reason",
-        "created_at", "updated_at",
+        "id",
+        "tenant_id",
+        "context_id",
+        "suggestion_type",
+        "title",
+        "payload_json",
+        "confidence",
+        "risk_band",
+        "priority",
+        "status",
+        "approved_by",
+        "approved_at",
+        "rejection_reason",
+        "created_at",
+        "updated_at",
     }
     assert set(row.keys()) == expected_keys

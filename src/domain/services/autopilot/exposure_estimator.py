@@ -12,6 +12,7 @@ e chiede al modello di stimare:
 Framework legale esplicito nel system prompt → il modello si ancora su
 Art. 188 D.Lgs. 81/2008 e distingue correttamente i valori soglia.
 """
+
 from __future__ import annotations
 
 import json
@@ -119,9 +120,7 @@ class ExposureEstimatorAgent:
     # ── internal ───────────────────────────────────────────────────
 
     @staticmethod
-    def _build_user_prompt(
-        phases: list[PhaseInput], industry_context: str | None
-    ) -> str:
+    def _build_user_prompt(phases: list[PhaseInput], industry_context: str | None) -> str:
         phases_json = [
             {
                 "phase_id": p.phase_id,
@@ -133,11 +132,7 @@ class ExposureEstimatorAgent:
             for p in phases
         ]
         header = "Ecco le fasi da analizzare:\n\n"
-        ctx = (
-            f"Contesto settoriale: {industry_context}\n\n"
-            if industry_context
-            else ""
-        )
+        ctx = f"Contesto settoriale: {industry_context}\n\n" if industry_context else ""
         return (
             f"{ctx}{header}"
             f"{json.dumps(phases_json, ensure_ascii=False, indent=2)}\n\n"
@@ -146,9 +141,7 @@ class ExposureEstimatorAgent:
         )
 
     @staticmethod
-    def _parse_response(
-        content: str, phases: list[PhaseInput]
-    ) -> list[PhaseExposureEstimate]:
+    def _parse_response(content: str, phases: list[PhaseInput]) -> list[PhaseExposureEstimate]:
         # Strip common LLM noise — code fences, leading prose
         cleaned = content.strip()
         if cleaned.startswith("```"):
@@ -170,19 +163,13 @@ class ExposureEstimatorAgent:
                 try:
                     parsed = json.loads(cleaned[start : end + 1])
                 except json.JSONDecodeError:
-                    raise ExposureEstimatorError(
-                        f"LLM returned non-JSON content: {content[:200]}"
-                    ) from exc
+                    raise ExposureEstimatorError(f"LLM returned non-JSON content: {content[:200]}") from exc
             else:
-                raise ExposureEstimatorError(
-                    f"LLM returned non-JSON content: {content[:200]}"
-                ) from exc
+                raise ExposureEstimatorError(f"LLM returned non-JSON content: {content[:200]}") from exc
 
         raw_estimates = parsed.get("estimates")
         if not isinstance(raw_estimates, list):
-            raise ExposureEstimatorError(
-                "Missing 'estimates' list in LLM response"
-            )
+            raise ExposureEstimatorError("Missing 'estimates' list in LLM response")
 
         phase_by_id = {p.phase_id: p for p in phases}
         results: list[PhaseExposureEstimate] = []
@@ -200,15 +187,15 @@ class ExposureEstimatorAgent:
                 laeq = float(raw.get("laeq_db", 0))
                 duration = float(raw.get("duration_hours", 0))
             except (TypeError, ValueError) as exc:
-                logger.warning(
-                    "Skipping estimate %d: non-numeric laeq/duration: %s", idx, exc
-                )
+                logger.warning("Skipping estimate %d: non-numeric laeq/duration: %s", idx, exc)
                 continue
 
             if laeq <= 0 or duration <= 0:
                 logger.warning(
                     "Skipping estimate %d: non-positive laeq=%s duration=%s",
-                    idx, laeq, duration,
+                    idx,
+                    laeq,
+                    duration,
                 )
                 continue
 
@@ -224,9 +211,7 @@ class ExposureEstimatorAgent:
                     k_imp_db=float(raw.get("k_imp_db", 0) or 0),
                     confidence=_clamp01(raw.get("confidence", 0.5)),
                     reasoning=str(raw.get("reasoning", "")),
-                    data_gaps=[
-                        str(g) for g in (raw.get("data_gaps") or []) if g
-                    ],
+                    data_gaps=[str(g) for g in (raw.get("data_gaps") or []) if g],
                     source="llm_inferred",
                 )
             )

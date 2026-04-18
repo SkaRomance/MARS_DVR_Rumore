@@ -3,11 +3,11 @@
 Uses the conftest SQLite test engine + db_session fixture for a real
 database roundtrip, and httpx.MockTransport for MARS client.
 """
+
 from __future__ import annotations
 
-import json
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
@@ -24,7 +24,6 @@ from src.infrastructure.database.models.noise_assessment_context import (
 from src.infrastructure.database.models.tenant import Tenant
 from src.infrastructure.mars.client import MarsApiClient
 
-
 TOKEN = "bearer-xyz"
 
 
@@ -40,7 +39,7 @@ async def tenant(db_session: AsyncSession) -> Tenant:
 
 
 def _revision_body(doc_id: uuid.UUID, version: int = 1) -> dict:
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     rev_id = uuid.uuid4()
     return {
         "id": str(rev_id),
@@ -132,7 +131,7 @@ async def test_bootstrap_returns_existing_fresh_context(db_session, tenant):
         dvr_snapshot={"existing": True},
         dvr_schema_version="1.1.0",
         status=NoiseAssessmentContextStatus.in_progress.value,
-        last_synced_at=datetime.now(timezone.utc),
+        last_synced_at=datetime.now(UTC),
     )
     db_session.add(existing)
     await db_session.flush()
@@ -177,7 +176,7 @@ async def test_bootstrap_refreshes_stale_context(db_session, tenant):
         dvr_snapshot={"old": True},
         dvr_schema_version="1.0.0",
         status=NoiseAssessmentContextStatus.in_progress.value,
-        last_synced_at=datetime.now(timezone.utc) - timedelta(days=10),
+        last_synced_at=datetime.now(UTC) - timedelta(days=10),
     )
     db_session.add(existing)
     await db_session.flush()
@@ -225,7 +224,7 @@ async def test_bootstrap_force_sync_refreshes_fresh_context(db_session, tenant):
         dvr_snapshot={"v1": True},
         dvr_schema_version="1.0.0",
         status=NoiseAssessmentContextStatus.bootstrapped.value,
-        last_synced_at=datetime.now(timezone.utc),  # Fresh
+        last_synced_at=datetime.now(UTC),  # Fresh
     )
     db_session.add(existing)
     await db_session.flush()
@@ -298,7 +297,7 @@ async def test_get_by_dvr_returns_most_recent(db_session, tenant):
         mars_document_version=1,
         status="bootstrapped",
         dvr_schema_version="1.0.0",
-        last_synced_at=datetime.now(timezone.utc) - timedelta(hours=2),
+        last_synced_at=datetime.now(UTC) - timedelta(hours=2),
     )
     newer = NoiseAssessmentContext(
         id=uuid.uuid4(),
@@ -309,7 +308,7 @@ async def test_get_by_dvr_returns_most_recent(db_session, tenant):
         mars_document_version=2,
         status="in_progress",
         dvr_schema_version="1.1.0",
-        last_synced_at=datetime.now(timezone.utc),
+        last_synced_at=datetime.now(UTC),
     )
     db_session.add_all([older, newer])
     await db_session.flush()
@@ -360,9 +359,7 @@ async def test_get_by_dvr_raises_when_missing(db_session, tenant):
     try:
         svc = NoiseAssessmentContextService(db_session, client)
         with pytest.raises(NoiseAssessmentContextNotFoundError):
-            await svc.get_by_dvr(
-                tenant_id=tenant.id, mars_dvr_document_id=uuid.uuid4()
-            )
+            await svc.get_by_dvr(tenant_id=tenant.id, mars_dvr_document_id=uuid.uuid4())
     finally:
         await client.close()
 

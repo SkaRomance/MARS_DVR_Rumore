@@ -7,6 +7,7 @@ models from either style (useful in tests).
 `extra="allow"` on DVR snapshot types ensures MARS can add fields
 without breaking our parsing — we only extract what we need.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -76,13 +77,9 @@ class MarsDvrSnapshot(BaseModel):
     """Full DVR document snapshot (schema v1.0 or v1.1 with module_extensions)."""
 
     schema_version: Literal["1.0.0", "1.1.0"] = Field(alias="schemaVersion")
-    company_data: MarsDvrCompanyData = Field(
-        default_factory=MarsDvrCompanyData, alias="companyData"
-    )
+    company_data: MarsDvrCompanyData = Field(default_factory=MarsDvrCompanyData, alias="companyData")
     work_phases: list[MarsDvrWorkPhase] = Field(default_factory=list, alias="workPhases")
-    phase_equipments: list[MarsDvrPhaseEquipment] = Field(
-        default_factory=list, alias="phaseEquipments"
-    )
+    phase_equipments: list[MarsDvrPhaseEquipment] = Field(default_factory=list, alias="phaseEquipments")
     risks: list[dict[str, Any]] = Field(default_factory=list)
     actions: list[dict[str, Any]] = Field(default_factory=list)
     trainings: list[dict[str, Any]] = Field(default_factory=list)

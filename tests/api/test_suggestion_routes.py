@@ -1,4 +1,5 @@
 """API tests for /api/v1/noise/suggestions/* (V2 context-scoped)."""
+
 from __future__ import annotations
 
 import uuid
@@ -10,14 +11,12 @@ from src.api.dependencies.mars import get_mars_client, require_mars_context
 from src.bootstrap.main import app
 from src.infrastructure.database.models.ai_suggestion import (
     AISuggestion,
-    AISuggestionStatus,
 )
 from src.infrastructure.database.models.noise_assessment_context import (
     NoiseAssessmentContext,
 )
 from src.infrastructure.database.models.tenant import Tenant
 from src.infrastructure.mars.types import MarsContext
-
 
 PREFIX = "/api/v1/noise"
 
@@ -56,9 +55,7 @@ async def seeded(db_session):
     await db_session.flush()
 
     sugg_list: list[AISuggestion] = []
-    for i, (status, confidence) in enumerate(
-        [("pending", 0.9), ("pending", 0.4), ("approved", 0.8)]
-    ):
+    for i, (status, confidence) in enumerate([("pending", 0.9), ("pending", 0.4), ("approved", 0.8)]):
         s = AISuggestion(
             id=uuid.uuid4(),
             tenant_id=tenant.id,
@@ -88,8 +85,9 @@ def mars_override(seeded):
     )
     app.dependency_overrides[require_mars_context] = lambda: mars_ctx
     # Minimal mock client, unused by suggestion routes
-    from src.infrastructure.mars.client import MarsApiClient
     import httpx
+
+    from src.infrastructure.mars.client import MarsApiClient
 
     client = MarsApiClient(
         base_url="http://mars.test",
@@ -163,9 +161,7 @@ async def test_approve_with_edits(client: AsyncClient, seeded, mars_override):
     assert body["payload_json"]["laeq_db"] == 99.0
 
 
-async def test_approve_already_approved_returns_409(
-    client: AsyncClient, seeded, mars_override
-):
+async def test_approve_already_approved_returns_409(client: AsyncClient, seeded, mars_override):
     _, _, sugg = seeded
     approved = [s for s in sugg if s.status == "approved"][0]
 
@@ -195,15 +191,11 @@ async def test_reject_with_reason(client: AsyncClient, seeded, mars_override):
     assert body["rejection_reason"] == "Non applicabile"
 
 
-async def test_reject_already_approved_returns_409(
-    client: AsyncClient, seeded, mars_override
-):
+async def test_reject_already_approved_returns_409(client: AsyncClient, seeded, mars_override):
     _, _, sugg = seeded
     approved = [s for s in sugg if s.status == "approved"][0]
 
-    r = await client.post(
-        f"{PREFIX}/suggestions/{approved.id}/reject", json={"reason": "x"}
-    )
+    r = await client.post(f"{PREFIX}/suggestions/{approved.id}/reject", json={"reason": "x"})
     assert r.status_code == 409
 
 
@@ -225,9 +217,7 @@ async def test_bulk_approve(client: AsyncClient, seeded, mars_override):
     assert body["failed"] == []
 
 
-async def test_bulk_approve_min_confidence(
-    client: AsyncClient, seeded, mars_override
-):
+async def test_bulk_approve_min_confidence(client: AsyncClient, seeded, mars_override):
     _, _, sugg = seeded
     pending_ids = [str(s.id) for s in sugg if s.status == "pending"]
 
@@ -262,9 +252,7 @@ async def test_bulk_reject_with_reason(client: AsyncClient, seeded, mars_overrid
     assert r.json()["processed"] == 2
 
 
-async def test_bulk_invalid_action_returns_422(
-    client: AsyncClient, seeded, mars_override
-):
+async def test_bulk_invalid_action_returns_422(client: AsyncClient, seeded, mars_override):
     _, _, sugg = seeded
     pending_ids = [str(s.id) for s in sugg if s.status == "pending"]
 

@@ -13,11 +13,12 @@ Risk bands per Art. 188:
     85 <= x < 87    → orange  (upper action value)
     >= 87           → red     (exposure limit)
 """
+
 from __future__ import annotations
 
 import math
-from typing import Iterable, Literal
-
+from collections.abc import Iterable
+from typing import Literal
 
 RiskBand = Literal["green", "yellow", "orange", "red"]
 T_REF_HOURS = 8.0

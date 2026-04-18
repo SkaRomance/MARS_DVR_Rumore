@@ -5,6 +5,7 @@ Each test verifies that the agent produces the expected structured
 estimates for well-formed LLM output, and degrades gracefully on
 malformed output (skip vs raise).
 """
+
 from __future__ import annotations
 
 import json
@@ -36,21 +37,23 @@ def _provider_for(estimates: list[dict]) -> MockProvider:
 
 
 async def test_estimate_single_phase_happy_path():
-    provider = _provider_for([
-        {
-            "phase_id": "ph-1",
-            "phase_name": "Taglio lamiera",
-            "job_role": "operaio",
-            "laeq_db": 95.3,
-            "duration_hours": 2.5,
-            "lcpeak_db": 128.0,
-            "k_tone_db": 0,
-            "k_imp_db": 3,
-            "confidence": 0.72,
-            "reasoning": "Flessibile angolare tipico 90-100 dB LAeq.",
-            "data_gaps": ["durata precisa non confermata"],
-        }
-    ])
+    provider = _provider_for(
+        [
+            {
+                "phase_id": "ph-1",
+                "phase_name": "Taglio lamiera",
+                "job_role": "operaio",
+                "laeq_db": 95.3,
+                "duration_hours": 2.5,
+                "lcpeak_db": 128.0,
+                "k_tone_db": 0,
+                "k_imp_db": 3,
+                "confidence": 0.72,
+                "reasoning": "Flessibile angolare tipico 90-100 dB LAeq.",
+                "data_gaps": ["durata precisa non confermata"],
+            }
+        ]
+    )
     agent = ExposureEstimatorAgent(provider)
 
     results = await agent.estimate([_phase()])
@@ -70,20 +73,32 @@ async def test_estimate_single_phase_happy_path():
 
 
 async def test_estimate_multiple_phases_preserves_order():
-    provider = _provider_for([
-        {
-            "phase_id": "ph-1", "phase_name": "A",
-            "laeq_db": 82.0, "duration_hours": 4.0,
-            "k_tone_db": 0, "k_imp_db": 0, "confidence": 0.5,
-            "reasoning": "r1", "data_gaps": [],
-        },
-        {
-            "phase_id": "ph-2", "phase_name": "B",
-            "laeq_db": 90.0, "duration_hours": 2.0,
-            "k_tone_db": 3, "k_imp_db": 0, "confidence": 0.7,
-            "reasoning": "r2", "data_gaps": [],
-        },
-    ])
+    provider = _provider_for(
+        [
+            {
+                "phase_id": "ph-1",
+                "phase_name": "A",
+                "laeq_db": 82.0,
+                "duration_hours": 4.0,
+                "k_tone_db": 0,
+                "k_imp_db": 0,
+                "confidence": 0.5,
+                "reasoning": "r1",
+                "data_gaps": [],
+            },
+            {
+                "phase_id": "ph-2",
+                "phase_name": "B",
+                "laeq_db": 90.0,
+                "duration_hours": 2.0,
+                "k_tone_db": 3,
+                "k_imp_db": 0,
+                "confidence": 0.7,
+                "reasoning": "r2",
+                "data_gaps": [],
+            },
+        ]
+    )
     agent = ExposureEstimatorAgent(provider)
     phases = [_phase(phase_id="ph-1", phase_name="A"), _phase(phase_id="ph-2", phase_name="B")]
     results = await agent.estimate(phases)
@@ -107,14 +122,23 @@ async def test_llm_returns_malformed_json_raises():
 
 
 async def test_llm_wraps_json_in_code_fence_is_unwrapped():
-    body = json.dumps({"estimates": [
+    body = json.dumps(
         {
-            "phase_id": "ph-1", "phase_name": "T",
-            "laeq_db": 85.0, "duration_hours": 1.5,
-            "k_tone_db": 0, "k_imp_db": 0, "confidence": 0.6,
-            "reasoning": "ok", "data_gaps": [],
+            "estimates": [
+                {
+                    "phase_id": "ph-1",
+                    "phase_name": "T",
+                    "laeq_db": 85.0,
+                    "duration_hours": 1.5,
+                    "k_tone_db": 0,
+                    "k_imp_db": 0,
+                    "confidence": 0.6,
+                    "reasoning": "ok",
+                    "data_gaps": [],
+                }
+            ]
         }
-    ]})
+    )
     provider = MockProvider(response_content=f"```json\n{body}\n```")
     agent = ExposureEstimatorAgent(provider)
     results = await agent.estimate([_phase()])
@@ -123,17 +147,24 @@ async def test_llm_wraps_json_in_code_fence_is_unwrapped():
 
 
 async def test_llm_wraps_in_prose_best_effort_parse():
-    body = json.dumps({"estimates": [
+    body = json.dumps(
         {
-            "phase_id": "ph-1", "phase_name": "X",
-            "laeq_db": 88.0, "duration_hours": 2.0,
-            "k_tone_db": 0, "k_imp_db": 0, "confidence": 0.6,
-            "reasoning": "ok", "data_gaps": [],
+            "estimates": [
+                {
+                    "phase_id": "ph-1",
+                    "phase_name": "X",
+                    "laeq_db": 88.0,
+                    "duration_hours": 2.0,
+                    "k_tone_db": 0,
+                    "k_imp_db": 0,
+                    "confidence": 0.6,
+                    "reasoning": "ok",
+                    "data_gaps": [],
+                }
+            ]
         }
-    ]})
-    provider = MockProvider(
-        response_content=f"Ecco la mia risposta:\n\n{body}\n\nSpero sia utile."
     )
+    provider = MockProvider(response_content=f"Ecco la mia risposta:\n\n{body}\n\nSpero sia utile.")
     agent = ExposureEstimatorAgent(provider)
     results = await agent.estimate([_phase()])
     assert len(results) == 1
@@ -148,15 +179,22 @@ async def test_missing_estimates_field_raises():
 
 
 async def test_skips_estimate_with_missing_numbers():
-    provider = _provider_for([
-        {"phase_id": "ph-1", "phase_name": "A", "reasoning": "incomplete"},
-        {
-            "phase_id": "ph-2", "phase_name": "B",
-            "laeq_db": 85.0, "duration_hours": 2.0,
-            "k_tone_db": 0, "k_imp_db": 0, "confidence": 0.6,
-            "reasoning": "ok", "data_gaps": [],
-        },
-    ])
+    provider = _provider_for(
+        [
+            {"phase_id": "ph-1", "phase_name": "A", "reasoning": "incomplete"},
+            {
+                "phase_id": "ph-2",
+                "phase_name": "B",
+                "laeq_db": 85.0,
+                "duration_hours": 2.0,
+                "k_tone_db": 0,
+                "k_imp_db": 0,
+                "confidence": 0.6,
+                "reasoning": "ok",
+                "data_gaps": [],
+            },
+        ]
+    )
     agent = ExposureEstimatorAgent(provider)
     results = await agent.estimate([_phase(phase_id="ph-1"), _phase(phase_id="ph-2")])
     assert len(results) == 1  # first dropped, second kept
@@ -164,57 +202,84 @@ async def test_skips_estimate_with_missing_numbers():
 
 
 async def test_confidence_clamped_to_0_1():
-    provider = _provider_for([
-        {
-            "phase_id": "ph-1", "phase_name": "A",
-            "laeq_db": 85.0, "duration_hours": 2.0,
-            "k_tone_db": 0, "k_imp_db": 0, "confidence": 5.0,  # out of range
-            "reasoning": "bug", "data_gaps": [],
-        }
-    ])
+    provider = _provider_for(
+        [
+            {
+                "phase_id": "ph-1",
+                "phase_name": "A",
+                "laeq_db": 85.0,
+                "duration_hours": 2.0,
+                "k_tone_db": 0,
+                "k_imp_db": 0,
+                "confidence": 5.0,  # out of range
+                "reasoning": "bug",
+                "data_gaps": [],
+            }
+        ]
+    )
     agent = ExposureEstimatorAgent(provider)
     results = await agent.estimate([_phase()])
     assert results[0].confidence == 1.0
 
 
 async def test_confidence_non_numeric_defaults_to_half():
-    provider = _provider_for([
-        {
-            "phase_id": "ph-1", "phase_name": "A",
-            "laeq_db": 85.0, "duration_hours": 2.0,
-            "k_tone_db": 0, "k_imp_db": 0,
-            "confidence": "high",
-            "reasoning": "bug", "data_gaps": [],
-        }
-    ])
+    provider = _provider_for(
+        [
+            {
+                "phase_id": "ph-1",
+                "phase_name": "A",
+                "laeq_db": 85.0,
+                "duration_hours": 2.0,
+                "k_tone_db": 0,
+                "k_imp_db": 0,
+                "confidence": "high",
+                "reasoning": "bug",
+                "data_gaps": [],
+            }
+        ]
+    )
     agent = ExposureEstimatorAgent(provider)
     results = await agent.estimate([_phase()])
     assert results[0].confidence == 0.5
 
 
 async def test_lcpeak_null_when_not_provided():
-    provider = _provider_for([
-        {
-            "phase_id": "ph-1", "phase_name": "A",
-            "laeq_db": 82.0, "duration_hours": 4.0,
-            "k_tone_db": 0, "k_imp_db": 0, "confidence": 0.6,
-            "reasoning": "no peaks", "data_gaps": [],
-        }
-    ])
+    provider = _provider_for(
+        [
+            {
+                "phase_id": "ph-1",
+                "phase_name": "A",
+                "laeq_db": 82.0,
+                "duration_hours": 4.0,
+                "k_tone_db": 0,
+                "k_imp_db": 0,
+                "confidence": 0.6,
+                "reasoning": "no peaks",
+                "data_gaps": [],
+            }
+        ]
+    )
     agent = ExposureEstimatorAgent(provider)
     results = await agent.estimate([_phase()])
     assert results[0].lcpeak_db is None
 
 
 async def test_industry_context_passed_through_prompt():
-    provider = _provider_for([
-        {
-            "phase_id": "ph-1", "phase_name": "A",
-            "laeq_db": 85.0, "duration_hours": 2.0,
-            "k_tone_db": 0, "k_imp_db": 0, "confidence": 0.6,
-            "reasoning": "ok", "data_gaps": [],
-        }
-    ])
+    provider = _provider_for(
+        [
+            {
+                "phase_id": "ph-1",
+                "phase_name": "A",
+                "laeq_db": 85.0,
+                "duration_hours": 2.0,
+                "k_tone_db": 0,
+                "k_imp_db": 0,
+                "confidence": 0.6,
+                "reasoning": "ok",
+                "data_gaps": [],
+            }
+        ]
+    )
     agent = ExposureEstimatorAgent(provider)
     await agent.estimate([_phase()], industry_context="officina metalmeccanica")
     # We can't inspect the prompt sent directly with the minimal MockProvider,
@@ -225,15 +290,21 @@ async def test_industry_context_passed_through_prompt():
 
 async def test_phase_name_fallback_to_input():
     """If LLM drops phase_name but keeps phase_id, we backfill from input."""
-    provider = _provider_for([
-        {
-            "phase_id": "ph-1",
-            # phase_name missing
-            "laeq_db": 85.0, "duration_hours": 2.0,
-            "k_tone_db": 0, "k_imp_db": 0, "confidence": 0.6,
-            "reasoning": "ok", "data_gaps": [],
-        }
-    ])
+    provider = _provider_for(
+        [
+            {
+                "phase_id": "ph-1",
+                # phase_name missing
+                "laeq_db": 85.0,
+                "duration_hours": 2.0,
+                "k_tone_db": 0,
+                "k_imp_db": 0,
+                "confidence": 0.6,
+                "reasoning": "ok",
+                "data_gaps": [],
+            }
+        ]
+    )
     agent = ExposureEstimatorAgent(provider)
     phase = _phase(phase_id="ph-1", phase_name="Original Name")
     results = await agent.estimate([phase])

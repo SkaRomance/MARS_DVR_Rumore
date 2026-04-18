@@ -1,4 +1,5 @@
 """Shared types for the AI Autopilot pipeline."""
+
 from __future__ import annotations
 
 import enum
@@ -37,7 +38,7 @@ class PhaseExposureEstimate:
     source: Literal["paf_catalog", "estimated", "llm_inferred"] = "llm_inferred"
 
 
-class AutopilotEventKind(str, enum.Enum):
+class AutopilotEventKind(enum.StrEnum):
     """SSE event kinds emitted by the orchestrator."""
 
     started = "started"
@@ -49,7 +50,7 @@ class AutopilotEventKind(str, enum.Enum):
     failed = "failed"
 
 
-class AutopilotStep(str, enum.Enum):
+class AutopilotStep(enum.StrEnum):
     """Pipeline step identifiers — ordered roughly by execution."""
 
     initialize = "initialize"

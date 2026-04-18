@@ -4,6 +4,7 @@ These map to HTTP status codes returned by the MARS API and allow
 FastAPI dependencies / route handlers to translate them to appropriate
 client-facing responses without leaking upstream details.
 """
+
 from __future__ import annotations
 
 
