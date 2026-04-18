@@ -14,6 +14,10 @@ from src.infrastructure.database.models.noise_assessment import (
     NoiseAssessment,
     NoiseAssessmentResult,
 )
+from src.infrastructure.database.models.noise_assessment_context import (
+    NoiseAssessmentContext,
+    NoiseAssessmentContextStatus,
+)
 from src.infrastructure.database.models.noise_source import (
     MachineAsset,
     NoiseSourceCatalog,
@@ -25,6 +29,8 @@ from src.infrastructure.database.models.user import User, UserRole
 __all__ = [
     "Company",
     "NoiseAssessment",
+    "NoiseAssessmentContext",
+    "NoiseAssessmentContextStatus",
     "NoiseAssessmentResult",
     "NoiseSourceCatalog",
     "MachineAsset",
