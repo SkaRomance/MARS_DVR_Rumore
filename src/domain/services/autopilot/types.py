@@ -38,6 +38,27 @@ class PhaseExposureEstimate:
     source: Literal["paf_catalog", "estimated", "llm_inferred"] = "llm_inferred"
 
 
+@dataclass(frozen=True)
+class ReviewFinding:
+    """A single finding from ReviewAgent: outlier/low-confidence/data-gap signal."""
+
+    phase_id: str
+    severity: Literal["info", "warning", "error"]
+    issue: str
+    recommendation: str
+
+
+@dataclass(frozen=True)
+class MitigationSuggestion:
+    """A single mitigation measure proposed for a risky phase (>=80 dB)."""
+
+    phase_id: str
+    category: Literal["technical", "organizational", "ppe"]
+    measure: str
+    expected_reduction_db: float | None
+    reasoning: str
+
+
 class AutopilotEventKind(enum.StrEnum):
     """SSE event kinds emitted by the orchestrator."""
 
@@ -101,4 +122,7 @@ class AutopilotRunContext:
     exposure_estimates: list[PhaseExposureEstimate] = field(default_factory=list)
     lex_8h_db: float | None = None
     risk_band: Literal["green", "yellow", "orange", "red"] | None = None
+    review_findings: list[ReviewFinding] = field(default_factory=list)
+    mitigation_suggestions: list[MitigationSuggestion] = field(default_factory=list)
+    narrative_text: str | None = None
     persisted_suggestion_ids: list[uuid.UUID] = field(default_factory=list)

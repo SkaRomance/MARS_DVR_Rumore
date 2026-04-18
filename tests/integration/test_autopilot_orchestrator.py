@@ -288,3 +288,236 @@ async def test_sse_payload_shape_matches_frontend():
     assert d["payload"]["estimates_count"] == 3
     assert d["progress_percent"] == 45
     assert "timestamp" in d
+
+
+# ── Wave 27b: Review / Mitigation / Narrative agents ───────────────
+
+
+async def test_pipeline_with_all_three_agents_populates_run_ctx(db_session, seeded):
+    """End-to-end check: when all three agents are wired, review_findings,
+    mitigation_suggestions and narrative_text are populated, and the
+    corresponding step_completed events carry the expected payloads."""
+    from src.domain.services.autopilot.mitigation_agent import MitigationAgent
+    from src.domain.services.autopilot.narrative_agent import NarrativeAgent
+    from src.domain.services.autopilot.review_agent import ReviewAgent
+
+    tenant, ctx_row = seeded
+
+    estimates = [
+        {
+            "phase_id": "ph-1",
+            "phase_name": "Phase 1",
+            "job_role": "op",
+            "laeq_db": 92.0,
+            "duration_hours": 4.0,
+            "k_tone_db": 0,
+            "k_imp_db": 0,
+            "confidence": 0.8,
+            "reasoning": "ok",
+            "data_gaps": [],
+        },
+    ]
+    expo_agent = ExposureEstimatorAgent(_mock_provider(estimates))
+
+    review_provider = MockProvider(
+        response_content=json.dumps(
+            {
+                "findings": [
+                    {
+                        "phase_id": "ph-1",
+                        "severity": "warning",
+                        "issue": "Bassa confidenza complessiva",
+                        "recommendation": "Misurazione diretta",
+                    }
+                ]
+            }
+        )
+    )
+    review_agent = ReviewAgent(review_provider)
+
+    mitigation_provider = MockProvider(
+        response_content=json.dumps(
+            {
+                "suggestions": [
+                    {
+                        "phase_id": "ph-1",
+                        "category": "technical",
+                        "measure": "Cabinatura acustica della sorgente",
+                        "expected_reduction_db": 10.0,
+                        "reasoning": "prima linea gerarchia Art. 192",
+                    },
+                    {
+                        "phase_id": "ph-1",
+                        "category": "ppe",
+                        "measure": "Cuffie antirumore SNR 28 dB",
+                        "expected_reduction_db": 20.0,
+                        "reasoning": "residuale",
+                    },
+                ]
+            }
+        )
+    )
+    mitigation_agent = MitigationAgent(mitigation_provider)
+
+    sample_narrative = (
+        "Valutazione del rischio rumore ai sensi del D.Lgs. 81/2008 Art. 188. "
+        "LEX,8h pari a 89 dB(A), banda orange. K_I applicato secondo ISO 9612."
+    )
+    narrative_agent = NarrativeAgent(MockProvider(response_content=sample_narrative))
+
+    svc = SuggestionServiceV2(db_session)
+    orch = AutopilotOrchestrator(
+        db_session,
+        expo_agent,
+        svc,
+        review_agent=review_agent,
+        mitigation_agent=mitigation_agent,
+        narrative_agent=narrative_agent,
+    )
+
+    run_ctx = AutopilotRunContext(
+        context_id=ctx_row.id,
+        tenant_id=tenant.id,
+        access_token="bearer-x",
+        dvr_snapshot=_dvr_snapshot_with_phases(1),
+    )
+
+    events = [ev async for ev in orch.run(run_ctx)]
+
+    # run_ctx populated by all three new agents
+    assert len(run_ctx.review_findings) == 1
+    assert run_ctx.review_findings[0].severity == "warning"
+    assert len(run_ctx.mitigation_suggestions) == 2
+    assert {s.category for s in run_ctx.mitigation_suggestions} == {"technical", "ppe"}
+    assert run_ctx.narrative_text is not None
+    assert "LEX,8h" in run_ctx.narrative_text
+
+    # Each agent was called once
+    assert review_provider.call_count == 1
+    assert mitigation_provider.call_count == 1
+
+    # step_completed for each new step carries the right payload summary
+    completed_by_step = {e.step: e for e in events if e.kind == AutopilotEventKind.step_completed}
+    assert completed_by_step[AutopilotStep.review].payload == {"findings_count": 1}
+    assert completed_by_step[AutopilotStep.mitigation].payload == {"suggestions_count": 2}
+    narrative_payload = completed_by_step[AutopilotStep.narrative].payload
+    assert narrative_payload["narrative_generated"] is True
+    assert narrative_payload["narrative_chars"] > 0
+
+    # Steps fire in order: review → mitigation → narrative
+    step_completed_order = [e.step for e in events if e.kind == AutopilotEventKind.step_completed]
+    review_idx = step_completed_order.index(AutopilotStep.review)
+    mitigation_idx = step_completed_order.index(AutopilotStep.mitigation)
+    narrative_idx = step_completed_order.index(AutopilotStep.narrative)
+    assert review_idx < mitigation_idx < narrative_idx
+
+    # Persist step now reports both exposures + mitigations
+    persist_payload = completed_by_step[AutopilotStep.persist].payload
+    assert persist_payload["suggestions_count"] == 1  # one exposure estimate
+    assert persist_payload["mitigations_count"] == 2
+
+    # Final completed event exposes the new counts
+    done_event = events[-1]
+    assert done_event.kind == AutopilotEventKind.completed
+    assert done_event.payload["findings_count"] == 1
+    assert done_event.payload["mitigations_count"] == 2
+    assert done_event.payload["narrative_chars"] > 0
+
+
+async def test_pipeline_without_enrichment_agents_still_completes(db_session, seeded):
+    """Backward compat: if review/mitigation/narrative are not wired,
+    the pipeline still completes and those steps emit zero-count payloads."""
+    tenant, ctx_row = seeded
+
+    estimates = [
+        {
+            "phase_id": "ph-1",
+            "phase_name": "Phase 1",
+            "job_role": "op",
+            "laeq_db": 88.0,
+            "duration_hours": 4.0,
+            "k_tone_db": 0,
+            "k_imp_db": 0,
+            "confidence": 0.8,
+            "reasoning": "ok",
+            "data_gaps": [],
+        },
+    ]
+    expo_agent = ExposureEstimatorAgent(_mock_provider(estimates))
+    svc = SuggestionServiceV2(db_session)
+    orch = AutopilotOrchestrator(db_session, expo_agent, svc)  # no new agents
+
+    run_ctx = AutopilotRunContext(
+        context_id=ctx_row.id,
+        tenant_id=tenant.id,
+        access_token="bearer",
+        dvr_snapshot=_dvr_snapshot_with_phases(1),
+    )
+    events = [ev async for ev in orch.run(run_ctx)]
+
+    assert events[-1].kind == AutopilotEventKind.completed
+    assert run_ctx.review_findings == []
+    assert run_ctx.mitigation_suggestions == []
+    assert run_ctx.narrative_text is None
+
+    completed_by_step = {e.step: e for e in events if e.kind == AutopilotEventKind.step_completed}
+    assert completed_by_step[AutopilotStep.review].payload == {"findings_count": 0}
+    assert completed_by_step[AutopilotStep.mitigation].payload == {"suggestions_count": 0}
+    assert completed_by_step[AutopilotStep.narrative].payload == {
+        "narrative_generated": False,
+        "narrative_chars": 0,
+    }
+
+
+async def test_pipeline_enrichment_agent_failure_is_non_fatal(db_session, seeded):
+    """If the ReviewAgent (or any enrichment agent) raises a typed error,
+    the orchestrator emits step_failed, continues the pipeline, and still
+    reaches the `completed` event."""
+    from src.domain.services.autopilot.review_agent import ReviewAgent
+
+    tenant, ctx_row = seeded
+
+    estimates = [
+        {
+            "phase_id": "ph-1",
+            "phase_name": "Phase 1",
+            "job_role": "op",
+            "laeq_db": 88.0,
+            "duration_hours": 4.0,
+            "k_tone_db": 0,
+            "k_imp_db": 0,
+            "confidence": 0.8,
+            "reasoning": "ok",
+            "data_gaps": [],
+        },
+    ]
+    expo_agent = ExposureEstimatorAgent(_mock_provider(estimates))
+    # Malformed JSON from review → ReviewAgentError
+    bad_review_agent = ReviewAgent(MockProvider(response_content="NOT JSON"))
+
+    svc = SuggestionServiceV2(db_session)
+    orch = AutopilotOrchestrator(
+        db_session,
+        expo_agent,
+        svc,
+        review_agent=bad_review_agent,
+    )
+
+    run_ctx = AutopilotRunContext(
+        context_id=ctx_row.id,
+        tenant_id=tenant.id,
+        access_token="bearer",
+        dvr_snapshot=_dvr_snapshot_with_phases(1),
+    )
+    events = [ev async for ev in orch.run(run_ctx)]
+
+    # Pipeline reached the final `completed` event (non-fatal policy)
+    assert events[-1].kind == AutopilotEventKind.completed
+
+    # But we saw a step_failed for the review step specifically
+    failed_events = [e for e in events if e.kind == AutopilotEventKind.step_failed and e.step == AutopilotStep.review]
+    assert len(failed_events) == 1
+    assert "Review agent failed" in (failed_events[0].message or "")
+
+    # And run_ctx.review_findings was populated with an empty list
+    assert run_ctx.review_findings == []
