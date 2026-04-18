@@ -1,14 +1,14 @@
 """AutopilotOrchestrator — runs the AI pipeline as an async event stream.
 
-Pipeline stages (v1 — real stages marked ★, others are stubs):
+Pipeline stages (v1 — all stages now backed by real agents marked ★):
   1. initialize
   2. parse_dvr              ★  extract PhaseInput[] from snapshot
   3. source_detection          (stub — future PAF matching)
   4. exposure_estimation    ★  ExposureEstimatorAgent
   5. iso_9612_calc          ★  LEX,8h + risk band
-  6. review                    (stub — future cross-validation agent)
-  7. mitigation                (stub — future mitigation agent)
-  8. narrative                 (stub — future narrative generator)
+  6. review                 ★  ReviewAgent (cross-validation)
+  7. mitigation             ★  MitigationAgent (Art. 192 hierarchy)
+  8. narrative              ★  NarrativeAgent (DVR paragraph)
   9. persist                ★  create AISuggestion rows
   10. done
 
@@ -16,8 +16,14 @@ Each stage emits started → completed | failed events. The `run()` method
 is an async generator yielding AutopilotEvent objects as work progresses.
 A cancellation token (`request_cancel()`) aborts between stages.
 
-This is the skeleton; future stages get filled in by plugging in agents
-at the marked positions without touching the SSE wiring.
+Error handling policy (applies to review/mitigation/narrative):
+  These three stages are "enrichment" steps — not blockers. Unlike
+  ExposureEstimator's halt-on-failure pattern, a failure here leaves the
+  core value (LEX,8h + risk band) intact. Policy: on typed agent error
+  we emit `step_failed` (non-fatal), log a warning, leave the run_ctx
+  field empty/None, and continue. The exposure_estimation step remains
+  fatal. Unexpected (non-typed) exceptions still fall through to the
+  top-level except and halt the pipeline.
 """
 
 from __future__ import annotations
@@ -37,11 +43,24 @@ from src.domain.services.autopilot.iso_9612 import (
     compute_lex_8h_from_estimates,
     risk_band,
 )
+from src.domain.services.autopilot.mitigation_agent import (
+    MitigationAgent,
+    MitigationAgentError,
+)
+from src.domain.services.autopilot.narrative_agent import (
+    NarrativeAgent,
+    NarrativeAgentError,
+)
+from src.domain.services.autopilot.review_agent import (
+    ReviewAgent,
+    ReviewAgentError,
+)
 from src.domain.services.autopilot.types import (
     AutopilotEvent,
     AutopilotEventKind,
     AutopilotRunContext,
     AutopilotStep,
+    MitigationSuggestion,
     PhaseExposureEstimate,
     PhaseInput,
 )
@@ -69,10 +88,20 @@ class AutopilotOrchestrator:
         session: AsyncSession,
         exposure_agent: ExposureEstimatorAgent,
         suggestion_service: SuggestionServiceV2,
+        *,
+        review_agent: ReviewAgent | None = None,
+        mitigation_agent: MitigationAgent | None = None,
+        narrative_agent: NarrativeAgent | None = None,
     ):
         self._session = session
         self._exposure_agent = exposure_agent
         self._suggestion_service = suggestion_service
+        # Review/mitigation/narrative are optional: when None, the step
+        # still emits step_completed with an empty payload (backward-
+        # compatible with callers that have not yet wired the agents).
+        self._review_agent = review_agent
+        self._mitigation_agent = mitigation_agent
+        self._narrative_agent = narrative_agent
         self._cancelled = False
 
     def request_cancel(self) -> None:
@@ -179,29 +208,111 @@ class AutopilotOrchestrator:
             if self._check_cancel():
                 return
 
-            # ── review (stub) ──
-            for step_stub, label in [
-                (AutopilotStep.review, "Validazione incrociata (stub)"),
-                (AutopilotStep.mitigation, "Misure di mitigazione (stub)"),
-                (AutopilotStep.narrative, "Generazione narrativa DVR (stub)"),
-            ]:
-                yield self._event(
-                    AutopilotEventKind.step_started,
-                    step_stub,
-                    progress,
-                    message=label,
-                )
-                progress += _STEP_WEIGHTS[step_stub]
-                yield self._event(
-                    AutopilotEventKind.step_completed,
-                    step_stub,
-                    progress,
-                    payload={"note": f"{step_stub.value} pending future wave"},
-                )
-                if self._check_cancel():
-                    return
+            # ── review (real) ──
+            yield self._event(
+                AutopilotEventKind.step_started,
+                AutopilotStep.review,
+                progress,
+                message="Validazione incrociata delle stime",
+            )
+            if self._review_agent is not None:
+                try:
+                    ctx.review_findings = await self._review_agent.review(ctx.exposure_estimates)
+                except ReviewAgentError as exc:
+                    # Non-fatal: pipeline continues with empty findings.
+                    logger.warning("Review agent failed: %s", exc)
+                    ctx.review_findings = []
+                    yield self._event(
+                        AutopilotEventKind.step_failed,
+                        AutopilotStep.review,
+                        progress,
+                        message=f"Review agent failed (non-fatal): {exc}",
+                    )
+            progress += _STEP_WEIGHTS[AutopilotStep.review]
+            yield self._event(
+                AutopilotEventKind.step_completed,
+                AutopilotStep.review,
+                progress,
+                payload={"findings_count": len(ctx.review_findings)},
+            )
+            if self._check_cancel():
+                return
+
+            # ── mitigation (real) ──
+            yield self._event(
+                AutopilotEventKind.step_started,
+                AutopilotStep.mitigation,
+                progress,
+                message="Misure di mitigazione (D.Lgs. 81/2008 Art. 192)",
+            )
+            if self._mitigation_agent is not None:
+                try:
+                    ctx.mitigation_suggestions = await self._mitigation_agent.suggest(
+                        ctx.exposure_estimates,
+                        ctx.lex_8h_db or 0.0,
+                    )
+                except MitigationAgentError as exc:
+                    logger.warning("Mitigation agent failed: %s", exc)
+                    ctx.mitigation_suggestions = []
+                    yield self._event(
+                        AutopilotEventKind.step_failed,
+                        AutopilotStep.mitigation,
+                        progress,
+                        message=f"Mitigation agent failed (non-fatal): {exc}",
+                    )
+            progress += _STEP_WEIGHTS[AutopilotStep.mitigation]
+            yield self._event(
+                AutopilotEventKind.step_completed,
+                AutopilotStep.mitigation,
+                progress,
+                payload={"suggestions_count": len(ctx.mitigation_suggestions)},
+            )
+            if self._check_cancel():
+                return
+
+            # ── narrative (real) ──
+            yield self._event(
+                AutopilotEventKind.step_started,
+                AutopilotStep.narrative,
+                progress,
+                message="Generazione narrativa DVR",
+            )
+            if self._narrative_agent is not None and ctx.exposure_estimates:
+                try:
+                    ctx.narrative_text = await self._narrative_agent.generate(
+                        ctx.lex_8h_db or 0.0,
+                        ctx.risk_band or "green",
+                        ctx.exposure_estimates,
+                        ctx.review_findings,
+                    )
+                except NarrativeAgentError as exc:
+                    logger.warning("Narrative agent failed: %s", exc)
+                    ctx.narrative_text = None
+                    yield self._event(
+                        AutopilotEventKind.step_failed,
+                        AutopilotStep.narrative,
+                        progress,
+                        message=f"Narrative agent failed (non-fatal): {exc}",
+                    )
+            progress += _STEP_WEIGHTS[AutopilotStep.narrative]
+            yield self._event(
+                AutopilotEventKind.step_completed,
+                AutopilotStep.narrative,
+                progress,
+                payload={
+                    "narrative_generated": ctx.narrative_text is not None,
+                    "narrative_chars": len(ctx.narrative_text) if ctx.narrative_text else 0,
+                },
+            )
+            if self._check_cancel():
+                return
 
             # ── persist ──
+            # Persists: exposure estimates (phase_laeq suggestions) + mitigation
+            # suggestions (suggestion_type="mitigation"). narrative_text is NOT
+            # persisted because adding a column to NoiseAssessmentContext would
+            # require a migration; it lives in run_ctx in-memory only for now
+            # (future wave: persist to a dedicated field or separate table).
             yield self._event(
                 AutopilotEventKind.step_started,
                 AutopilotStep.persist,
@@ -209,13 +320,17 @@ class AutopilotOrchestrator:
                 message="Salvataggio suggerimenti",
             )
             persisted = await self._persist_estimates(ctx)
-            ctx.persisted_suggestion_ids = persisted
+            mitigation_ids = await self._persist_mitigations(ctx)
+            ctx.persisted_suggestion_ids = persisted + mitigation_ids
             progress = 100
             yield self._event(
                 AutopilotEventKind.step_completed,
                 AutopilotStep.persist,
                 progress,
-                payload={"suggestions_count": len(persisted)},
+                payload={
+                    "suggestions_count": len(persisted),
+                    "mitigations_count": len(mitigation_ids),
+                },
             )
 
             # ── done ──
@@ -232,6 +347,9 @@ class AutopilotOrchestrator:
                     "confidence": round(confidence, 2),
                     "duration_s": round(duration_s, 2),
                     "suggestions_count": len(persisted),
+                    "mitigations_count": len(mitigation_ids),
+                    "findings_count": len(ctx.review_findings),
+                    "narrative_chars": len(ctx.narrative_text) if ctx.narrative_text else 0,
                     "estimates_count": len(ctx.exposure_estimates),
                 },
             )
@@ -293,6 +411,22 @@ class AutopilotOrchestrator:
             ids.append(uuid.UUID(result["id"]))
         return ids
 
+    async def _persist_mitigations(self, ctx: AutopilotRunContext) -> list[uuid.UUID]:
+        """Write mitigation suggestions as pending AISuggestion rows."""
+        ids: list[uuid.UUID] = []
+        for sug in ctx.mitigation_suggestions:
+            payload = self._mitigation_to_payload(sug)
+            result = await self._suggestion_service.create(
+                context_id=ctx.context_id,
+                tenant_id=ctx.tenant_id,
+                suggestion_type="mitigation",
+                title=self._mitigation_title(sug),
+                payload_json=payload,
+                risk_band=ctx.risk_band,
+            )
+            ids.append(uuid.UUID(result["id"]))
+        return ids
+
     @staticmethod
     def _estimate_title(est: PhaseExposureEstimate) -> str:
         band_icon = {
@@ -323,6 +457,26 @@ class AutopilotOrchestrator:
             "reasoning": est.reasoning,
             "data_gaps": list(est.data_gaps),
             "source": est.source,
+        }
+
+    @staticmethod
+    def _mitigation_title(sug: MitigationSuggestion) -> str:
+        cat_label = {
+            "technical": "Tecnica",
+            "organizational": "Organizzativa",
+            "ppe": "DPI",
+        }.get(sug.category, sug.category)
+        measure_short = sug.measure[:80] + ("…" if len(sug.measure) > 80 else "")
+        return f"[{cat_label}] {measure_short}"
+
+    @staticmethod
+    def _mitigation_to_payload(sug: MitigationSuggestion) -> dict:
+        return {
+            "phase_id": sug.phase_id,
+            "category": sug.category,
+            "measure": sug.measure,
+            "expected_reduction_db": sug.expected_reduction_db,
+            "reasoning": sug.reasoning,
         }
 
     @staticmethod
