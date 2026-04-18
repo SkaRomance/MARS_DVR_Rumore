@@ -1,5 +1,16 @@
 # Wave 24 — MARS Repo Modifications
 
+> ⚠️ **NOTA REVISIONE 2026-04-18**: Discrepanze emerse durante esecuzione parziale. Il codice MARS reale usa struttura **flat** (`apps/api/src/auth.service.ts` direttamente, non `apps/api/src/auth/auth.service.ts`) e pattern di auth **inline** (`userFromAccessToken(authHeader)` chiamato dai controller, non `passport-jwt` con `JwtAuthGuard`). L'endpoint `GET /me` esiste già in `auth.service.ts` (L177-185) ma ritorna solo `{id, email, twoFactorEnabled, createdAt}`. Prima di eseguire M1/M5/M6/M3/M2/M7 riadattare i path del plan. M4 (contract v1.1) è invariato e già completato (commit `cabcf1f` su branch `noise-module-integration`). M8 (ModuleFrame) e M9 (ATECO seed) sono invariati.
+
+> **Adattamento path**:
+> - `apps/api/src/auth/auth.service.ts` → `apps/api/src/auth.service.ts`
+> - `apps/api/src/auth/auth.controller.ts` → `apps/api/src/auth.controller.ts`
+> - `apps/api/src/client-app/...` → `apps/api/src/client-app.controller.ts` / `client-app.service.ts`
+> - `apps/api/src/modules/modules.controller.ts` (nuovo) → `apps/api/src/modules.controller.ts` (flat, nuovo)
+> - `apps/api/src/dvr-documents/...` → `apps/api/src/dvr-documents.controller.ts`
+>
+> **Adattamento auth pattern**: Invece di `@UseGuards(JwtAuthGuard) + @Req() req: any` usare `@Headers('authorization') auth: string` + `const user = await this.authService.userFromAccessToken(auth)`. Lo user restituito è il record Prisma completo; da qui derivare `tenantId` tramite query `tenantMembership`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` inline o invoca l'agente custom `mars-backend-dev` (in `.claude/agents/mars-backend-dev.md`). Questo wave lavora sul repo MARS (`SkaRomance/MARS`), NON sul repo Rumore corrente.
 
 **Goal:** Estendere MARS con endpoint/schema/componenti che supportano l'integrazione del modulo Rumore (e futuri moduli rischio) come thin plugin.
