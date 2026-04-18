@@ -3,10 +3,10 @@
 > Dashboard di stato per ripristino lavoro da altre sessioni/macchine/agenti.
 > Ogni wave aggiorna questo file al completamento.
 
-**Last updated**: 2026-04-18 (Wave 24 partially started, Wave 25 blocked on Docker)
-**Current branch Rumore**: `master` (planning branch pushed as PR #2); `wave-25-db-refactoring` branch created empty
-**Current branch MARS**: `noise-module-integration` (M4 committed, cabcf1f)
-**Next action**: (1) Avvia Docker Desktop, (2) revisiona Wave 24 plan per adattare struttura flat MARS, (3) completa M1/M5/M6 su MARS, (4) parti con Wave 25 su Rumore
+**Last updated**: 2026-04-18 (Wave 29 completo, Wave 24 parziale, Wave 25 blocked on Docker)
+**Current branch Rumore**: `wave-29-frontend` (8 commit Wave 29, da pushare); planning branch come PR #2
+**Current branch MARS**: `noise-module-integration` (M4 committed, cabcf1f — locale, non pushato)
+**Next action**: (1) Push `wave-29-frontend` e apri PR, (2) coordina con l'altra sessione Claude per Wave 24 residuo, (3) Avvia Docker Desktop per sbloccare Wave 25+27
 
 ---
 
@@ -31,9 +31,27 @@
 
 | Wave | Plan file | Status | Branch | Notes |
 |---|---|---|---|---|
-| W24 | `2026-04-17-wave-24-mars-modifications.md` | 🚧 in-progress | `noise-module-integration` (MARS repo) | M4 done (cabcf1f); M1/M5/M6 bloccati per discrepanza plan vs struttura MARS reale |
+| W24 | `2026-04-17-wave-24-mars-modifications.md` | 🚧 in-progress | `noise-module-integration` (MARS repo) | M4 done (cabcf1f); M1/M5/M6 bloccati per discrepanza plan vs struttura MARS reale. Deprioritizzato (altra sessione Claude) |
 | W25 | `2026-04-17-wave-25-db-refactoring.md` | ⏸ blocked | `wave-25-db-refactoring` (empty) | Blocked: Docker Desktop non running |
-| W26-W31 | vari | ⏳ not started | — | Depends on W24+W25 |
+| W26 | `2026-04-17-wave-26-mars-integration.md` | ⏳ not started | — | Depends on W24+W25 |
+| W27 | `2026-04-17-wave-27-ai-autopilot.md` | ⏳ not started | — | Depends on W26 + DB |
+| W28 | `2026-04-17-wave-28-scheduler.md` | ⏳ not started | — | Code-only is writable ora; tests richiedono DB |
+| **W29** | `2026-04-17-wave-29-frontend.md` | **✅ DONE** | `wave-29-frontend` | 8 commit, 0 Docker dependency, frontend P0 completo |
+| W30 | `2026-04-17-wave-30-hardening.md` | ⏳ not started | — | Depends on W26-W28 |
+| W31 | `2026-04-17-wave-31-e2e.md` | ⏳ not started | — | Depends on all |
+
+### Wave 29 Progress Detail
+
+| Task | Status | Commit SHA | Notes |
+|---|---|---|---|
+| Task 1 ModuleBootstrap | ✅ done | `d5a83d0` | postMessage handshake, 3 modi (mars-iframe, standalone-dev, standalone-login) |
+| Task 2 APIClient extension | ✅ done | `a75696c` | +10 metodi (bootstrapContext, runAutopilot SSE, suggestions v2, audit) + iframe-mode 401 fix in auth.js |
+| Task 3 AutopilotView | ✅ done | `0654ca3` | SSE progress streaming + result dashboard risk-banded + error/retry |
+| Task 4 SuggestionCard+View | ✅ done | `8103578` | Per-type rendering, bulk toolbar, edit modal con form strutturato per phase_laeq/mitigation |
+| Task 5 SafeEditor | ✅ done | `77fcd2b` | UndoStack debounced + DOMPurify paste sanitize + keyboard shortcuts |
+| Task 6 AuditTrailPanel | ✅ done (frontend) | `e45397b` | Frontend completo; backend endpoint 404 graceful (dipende W25 AuditLog + W26 MarsContext) |
+| Task 7 Design tokens | ✅ done | `eb4a5d2` | Brand+semantic+risk-band (Art. 188) + typography + spacing/radius/shadow scales |
+| Task 8 Smoke test + STATUS | 🚧 in progress | — | Sintassi JS verificata, file inventory coerente |
 
 ### Wave 24 Progress Detail
 
@@ -103,3 +121,20 @@ git clone https://github.com/SkaRomance/MARS.git MARS_inspect
 - Subagent `mars-backend-dev` spawned su Wave 24 → crash API JSON a 49s; M4 completato e committato (cabcf1f)
 - Scoperta discrepanza plan Wave 24 vs struttura reale MARS flat
 - STATUS.md aggiornato con dettagli e prossimi passi
+
+**2026-04-18 — Wave 29 Frontend execution**
+- User pivot: deprioritizza Wave 24 MARS (altra sessione in parallelo), focus su funzionalità modulo Rumore
+- Creato branch `wave-29-frontend` da master
+- Adattata strategia plan: NON rimpiazzare `api-client.js` (rompe 70 endpoint wired in app.js 94KB); invece estensione additiva
+- 8 commit atomici per task (d5a83d0 → eb4a5d2):
+  - ModuleBootstrap + iframe-mode 401 fix in auth.js (non-breaking)
+  - APIClient +10 metodi (bootstrapContext, runAutopilot SSE, suggestions v2, audit)
+  - AutopilotView (SSE streaming, progress, result risk-banded, error/retry)
+  - SuggestionCard+View (bulk, edit modal strutturato phase_laeq/mitigation)
+  - SafeEditor+UndoStack (debounce 300ms, DOMPurify paste, keyboard)
+  - AuditTrailPanel (frontend; backend endpoint graceful 404 fino Wave 25+26)
+  - Design tokens (brand, risk-band Art. 188, typography, scales 4px-based)
+- Syntax check nodejs: PASS tutti 7 file JS nuovi
+- File inventory: 9 JS + 5 CSS + index.html refs tutti coerenti
+- Gap noto: AuditTrailPanel mostra "Registro non ancora disponibile" fino a quando backend audit è live (post Wave 25+26)
+- Branch pronto per push + PR
