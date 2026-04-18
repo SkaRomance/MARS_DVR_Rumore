@@ -85,13 +85,25 @@ class AuthService {
     }
 
     async fetchWithAuth(url, options = {}) {
+        const inMarsIframe = window.ModuleBootstrap?.mode === 'mars-iframe';
+
         if (!this.isAuthenticated()) {
+            if (inMarsIframe) {
+                // Parent owns auth; request refresh instead of redirecting
+                window.ModuleBootstrap.refresh();
+                return null;
+            }
             window.location.href = '/static/index.html#login';
             return null;
         }
         options.headers = { ...options.headers, ...this._authHeaders() };
         let response = await fetch(url, options);
         if (response.status === 401) {
+            if (inMarsIframe) {
+                // MARS owns token lifecycle; ask parent to rotate and bail
+                window.ModuleBootstrap.refresh();
+                return response;
+            }
             const refreshed = await this.refreshAccessToken();
             if (refreshed) {
                 options.headers = { ...options.headers, ...this._authHeaders() };

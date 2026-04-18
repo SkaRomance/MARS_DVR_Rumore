@@ -261,6 +261,137 @@
             return this.request('/rag/index', { method: 'POST', body: JSON.stringify({ reset }) });
         }
         async getRAGStats() { return this.request('/rag/stats'); }
+
+        // ── MARS context (Wave 26) ──
+        async bootstrapContext(dvrDocumentId, revisionId = null) {
+            const body = { mars_dvr_document_id: dvrDocumentId };
+            if (revisionId) body.mars_revision_id = revisionId;
+            return this.request('/contexts/bootstrap', { method: 'POST', body: JSON.stringify(body) });
+        }
+
+        async getContextByDvr(dvrDocumentId) {
+            return this.request(`/contexts/by-dvr/${dvrDocumentId}`);
+        }
+
+        // ── AI Autopilot (Wave 27) ──
+        async runAutopilot(contextId, onEvent) {
+            const url = `${this.baseURL}/autopilot/${contextId}/run`;
+            return this._sseRequest(url, { method: 'POST' }, onEvent);
+        }
+
+        async getAutopilotStatus(contextId) {
+            return this.request(`/autopilot/${contextId}/status`);
+        }
+
+        async cancelAutopilot(contextId) {
+            return this.request(`/autopilot/${contextId}/cancel`, { method: 'POST' });
+        }
+
+        // ── AI Suggestions v2 (Wave 27, context-scoped) ──
+        async listSuggestionsByContext(contextId, statusFilter = null) {
+            let path = `/suggestions/by-context/${contextId}`;
+            if (statusFilter) path += `?status=${encodeURIComponent(statusFilter)}`;
+            return this.request(path);
+        }
+
+        async approveSuggestionV2(suggestionId, editedPayload = null) {
+            const body = editedPayload ? { edited_payload: editedPayload } : {};
+            return this.request(`/suggestions/${suggestionId}/approve`, {
+                method: 'POST',
+                body: JSON.stringify(body),
+            });
+        }
+
+        async rejectSuggestionV2(suggestionId, reason = null) {
+            return this.request(`/suggestions/${suggestionId}/reject`, {
+                method: 'POST',
+                body: JSON.stringify({ reason }),
+            });
+        }
+
+        async bulkSuggestionAction(suggestionIds, action, options = {}) {
+            return this.request('/suggestions/bulk', {
+                method: 'POST',
+                body: JSON.stringify({ suggestion_ids: suggestionIds, action, ...options }),
+            });
+        }
+
+        // ── Audit log (Wave 29 frontend; backend from Wave 25+26) ──
+        async listAuditByContext(contextId, filters = {}) {
+            const params = new URLSearchParams();
+            if (filters.source) params.set('source', filters.source);
+            if (filters.action) params.set('action', filters.action);
+            if (filters.limit) params.set('limit', filters.limit);
+            const q = params.toString() ? `?${params}` : '';
+            return this.request(`/audit/by-context/${contextId}${q}`);
+        }
+
+        auditExportCsvUrl(contextId) {
+            return `${this.baseURL}/audit/by-context/${contextId}/export.csv`;
+        }
+
+        // ── SSE helper (Server-Sent Events over POST with fetch streaming) ──
+        async _sseRequest(url, options, onEvent) {
+            const token = window.authService?.getToken() || sessionStorage.getItem('mars_access_token') || '';
+            const response = await fetch(url, {
+                method: options.method || 'POST',
+                headers: {
+                    'Accept': 'text/event-stream',
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    ...(options.headers || {}),
+                },
+                body: options.body || undefined,
+            });
+
+            if (response.status === 401) {
+                window.ModuleBootstrap?.refresh?.();
+                throw new APIError('Session expired', 401, {});
+            }
+            if (response.status === 402) {
+                const data = await response.json().catch(() => ({}));
+                throw new APIError('Modulo non acquistato', 402, data);
+            }
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new APIError(data.detail || `SSE failed (${response.status})`, response.status, data);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let lastEvent = null;
+
+            // Parse SSE frames: events separated by blank line, lines prefixed "data: " carry JSON payload
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+
+                // Split on double-newline (SSE frame boundary)
+                const frames = buffer.split(/\n\n/);
+                buffer = frames.pop(); // keep partial last frame
+
+                for (const frame of frames) {
+                    const dataLines = frame.split('\n')
+                        .filter((l) => l.startsWith('data: '))
+                        .map((l) => l.slice(6))
+                        .join('\n');
+                    if (!dataLines) continue;
+                    try {
+                        const ev = JSON.parse(dataLines);
+                        lastEvent = ev;
+                        if (typeof onEvent === 'function') onEvent(ev);
+                        if (ev.kind === 'completed' || ev.kind === 'failed') {
+                            return ev;
+                        }
+                    } catch (e) {
+                        console.warn('[APIClient] SSE frame parse error', e, dataLines);
+                    }
+                }
+            }
+            return lastEvent;
+        }
     }
 
     class APIError extends Error {
