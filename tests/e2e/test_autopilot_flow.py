@@ -33,9 +33,7 @@ async def _bootstrap_context(client: httpx.AsyncClient) -> uuid.UUID:
     }
     resp = await client.post(f"{API_PREFIX}/contexts", json=body)
     if resp.status_code >= 400:
-        pytest.skip(
-            f"context bootstrap not available in this env (status={resp.status_code}, body={resp.text[:200]})"
-        )
+        pytest.skip(f"context bootstrap not available in this env (status={resp.status_code}, body={resp.text[:200]})")
     data = resp.json()
     return uuid.UUID(data["id"])
 
@@ -47,14 +45,10 @@ async def test_full_autopilot_pipeline_e2e(http_client: httpx.AsyncClient) -> No
     seen_kinds: list[str] = []
     seen_steps: list[str] = []
 
-    async with http_client.stream(
-        "POST", f"{API_PREFIX}/autopilot/{context_id}/run"
-    ) as resp:
+    async with http_client.stream("POST", f"{API_PREFIX}/autopilot/{context_id}/run") as resp:
         if resp.status_code != 200:
             body = await resp.aread()
-            pytest.skip(
-                f"autopilot run rejected (status={resp.status_code}, body={body[:200]!r})"
-            )
+            pytest.skip(f"autopilot run rejected (status={resp.status_code}, body={body[:200]!r})")
 
         async for line in resp.aiter_lines():
             if not line.startswith("data: "):

@@ -219,12 +219,8 @@ def auth_headers(test_jwt: str) -> dict[str, str]:
 
 
 @pytest_asyncio.fixture
-async def http_client(
-    uvicorn_server: str, auth_headers: dict[str, str]
-) -> AsyncGenerator[httpx.AsyncClient, None]:
-    async with httpx.AsyncClient(
-        base_url=uvicorn_server, headers=auth_headers, timeout=30.0
-    ) as client:
+async def http_client(uvicorn_server: str, auth_headers: dict[str, str]) -> AsyncGenerator[httpx.AsyncClient, None]:
+    async with httpx.AsyncClient(base_url=uvicorn_server, headers=auth_headers, timeout=30.0) as client:
         yield client
 
 

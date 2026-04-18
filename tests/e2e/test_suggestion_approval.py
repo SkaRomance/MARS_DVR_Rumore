@@ -27,9 +27,7 @@ async def _bootstrap_context(client: httpx.AsyncClient) -> uuid.UUID:
     }
     resp = await client.post(f"{API_PREFIX}/contexts", json=body)
     if resp.status_code >= 400:
-        pytest.skip(
-            f"context bootstrap not available in this env (status={resp.status_code})"
-        )
+        pytest.skip(f"context bootstrap not available in this env (status={resp.status_code})")
     return uuid.UUID(resp.json()["id"])
 
 
@@ -79,9 +77,7 @@ async def test_approve_suggestion_updates_status_e2e(http_client: httpx.AsyncCli
     )
     assert approve_resp.status_code == 200, approve_resp.text
 
-    list_resp = await http_client.get(
-        f"{API_PREFIX}/suggestions", params={"context_id": str(context_id)}
-    )
+    list_resp = await http_client.get(f"{API_PREFIX}/suggestions", params={"context_id": str(context_id)})
     assert list_resp.status_code == 200
     suggestions = list_resp.json()
     if isinstance(suggestions, dict) and "items" in suggestions:
