@@ -13,6 +13,7 @@ from src.api.routes import (
     assessments,
     ateco_routes,
     auth_routes,
+    autopilot_routes,
     catalog_routes,
     company_routes,
     context_routes,
@@ -108,6 +109,7 @@ app.include_router(
 app.include_router(rag_routes.router, prefix=settings.api_v1_prefix + "/rag", tags=["RAG"])
 app.include_router(context_routes.router, prefix=settings.api_v1_prefix, tags=["Noise Contexts"])
 app.include_router(suggestion_routes.router, prefix=settings.api_v1_prefix, tags=["Suggestions V2"])
+app.include_router(autopilot_routes.router, prefix=settings.api_v1_prefix, tags=["Autopilot"])
 
 
 @app.get("/")
