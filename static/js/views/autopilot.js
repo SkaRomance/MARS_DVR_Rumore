@@ -181,9 +181,9 @@
         async _cancel() {
             try {
                 await window.apiClient.cancelAutopilot(this.contextId);
-                window.showToast?.('Autopilot annullato', 'info');
+                window.app?.showToast?.('Autopilot annullato', 'info');
             } catch (err) {
-                window.showToast?.(`Errore annullamento: ${err.message}`, 'error');
+                window.app?.showToast?.(`Errore annullamento: ${err.message}`, 'error');
             }
         }
 
@@ -238,15 +238,15 @@
             try {
                 const suggestions = await window.apiClient.listSuggestionsByContext(this.contextId, 'pending');
                 if (!suggestions.length) {
-                    window.showToast?.('Nessun suggerimento pendente', 'info');
+                    window.app?.showToast?.('Nessun suggerimento pendente', 'info');
                     return;
                 }
                 const ids = suggestions.map((s) => s.id);
                 const result = await window.apiClient.bulkSuggestionAction(ids, 'approve', { min_confidence: 0.8 });
-                window.showToast?.(`Approvati ${result.processed}/${result.total_requested}`, 'success');
+                window.app?.showToast?.(`Approvati ${result.processed}/${result.total_requested}`, 'success');
                 window.dispatchEvent(new CustomEvent('navigate:suggestions', { detail: { contextId: this.contextId } }));
             } catch (err) {
-                window.showToast?.(`Errore: ${err.message}`, 'error');
+                window.app?.showToast?.(`Errore: ${err.message}`, 'error');
             }
         }
 
