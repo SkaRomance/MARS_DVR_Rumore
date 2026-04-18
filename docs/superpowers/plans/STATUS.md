@@ -3,10 +3,11 @@
 > Dashboard di stato per ripristino lavoro da altre sessioni/macchine/agenti.
 > Ogni wave aggiorna questo file al completamento.
 
-**Last updated**: 2026-04-18 (Wave 29 completo, Wave 26 foundation completo, Wave 24 parziale, Wave 25 blocked on Docker)
-**Current branch Rumore**: `wave-26-mars-foundation` (branched from wave-29-frontend, 4 commit Task 1-4 + tests); PR #3 Wave 29 aperta
+**Last updated**: 2026-04-18 (Wave 29 + Wave 26 foundation + W25-lite context end-to-end — tutti pushati)
+**Current branch Rumore**: `wave-25-lite-context` (branched from wave-26-mars-foundation, 4 commit model+migration+service+routes, 21 test)
 **Current branch MARS**: `noise-module-integration` (M4 committed, cabcf1f — locale, non pushato)
-**Next action**: (1) Push `wave-26-mars-foundation` e apri PR, (2) Wave 26 Task 5-8 richiedono Wave 25 models, (3) coordina con altra sessione per Wave 24 residuo, (4) Avvia Docker per sbloccare Wave 25+27
+**DB strategy**: Docker ELIMINATO come dipendenza. Il progetto gira su SQLite via conftest TypeDecorator swap (PG types auto-sostituiti in test). Dev può usare `DATABASE_URL=sqlite+aiosqlite:///./dev.sqlite3 make dev`. Production usa Postgres. Alembic migrations targetano PG; tests bypassano Alembic via `Base.metadata.create_all`. **315 test PASS senza Docker.**
+**Next action**: (1) Push `wave-25-lite-context` e apri PR, (2) Wave 27 AI Autopilot (orchestrator agents) adesso possibile con context service attivo, (3) route refactor (W26 Task 6) per wire context_id nelle route esistenti AI/assessments, (4) coordina altra sessione per Wave 24 MARS
 
 ---
 
@@ -32,7 +33,7 @@
 | Wave | Plan file | Status | Branch | Notes |
 |---|---|---|---|---|
 | W24 | `2026-04-17-wave-24-mars-modifications.md` | 🚧 in-progress | `noise-module-integration` (MARS repo) | M4 done (cabcf1f); M1/M5/M6 bloccati per discrepanza plan vs struttura MARS reale. Deprioritizzato (altra sessione Claude) |
-| W25 | `2026-04-17-wave-25-db-refactoring.md` | ⏸ blocked | `wave-25-db-refactoring` (empty) | Blocked: Docker Desktop non running |
+| W25 | `2026-04-17-wave-25-db-refactoring.md` | 🔻 descoped → W25-lite | `wave-25-db-refactoring` (empty, deprecato) | Full UUID+outbox refactor deprioritizzato. Scope ridotto a W25-lite: solo NoiseAssessmentContext model/migration/service/routes (4 commit, 21 test). PR #5. |
 | W26 | `2026-04-17-wave-26-mars-integration.md` | 🚧 foundation done | `wave-26-mars-foundation` | Task 1-4 done (MarsApiClient, JwtValidator, TenantResolver, FastAPI dep). Task 5-8 richiedono modelli Wave 25. 55 unit test PASS. |
 | W27 | `2026-04-17-wave-27-ai-autopilot.md` | ⏳ not started | — | Depends on W26 + DB |
 | W28 | `2026-04-17-wave-28-scheduler.md` | ⏳ not started | — | Code-only is writable ora; tests richiedono DB |
@@ -121,6 +122,19 @@ git clone https://github.com/SkaRomance/MARS.git MARS_inspect
 - Subagent `mars-backend-dev` spawned su Wave 24 → crash API JSON a 49s; M4 completato e committato (cabcf1f)
 - Scoperta discrepanza plan Wave 24 vs struttura reale MARS flat
 - STATUS.md aggiornato con dettagli e prossimi passi
+
+**2026-04-18 — W25-lite context service execution**
+- Pivot su "no Docker" per l'utente: scoperto che tests esistenti già giravano su SQLite via conftest TypeDecorator swap → 294 test PASS senza Docker
+- Descoping W25 full DB refactoring (UUID migration + outbox + audit v2) → **W25-lite** focalizzato solo su NoiseAssessmentContext (il blocker funzionale per il frontend)
+- Branch `wave-25-lite-context` da `wave-26-mars-foundation`
+- 4 commit con test:
+  - `fe7e4f6` NoiseAssessmentContext model + enum (registrato in models/__init__)
+  - `c30d40c` Alembic migration 012 (UNIQUE tenant+doc+rev, composite tenant+updated_at index)
+  - `81d6b87` NoiseAssessmentContextService (11 integration test SQLite: bootstrap create/fresh/stale/force/no-revision, get_by_dvr/id tenant isolation, list status filter, update_status, unique constraint idempotence)
+  - `7c671d8` /contexts routes + schemas (10 api test: bootstrap, idempotence, no-auth 401, get by id, cross-tenant 404, by-dvr, list, update status, 422 invalid, by-dvr missing 404)
+- Fix bug scoperto: `/contexts` (no slash) collide con `assessments/{assessment_id}` route match. Aggiunto trailing `/` esplicito. Conflitto scoperto in test routing, fixato in 1 commit.
+- Fix bug SQLAlchemy: `update_status` ora fa `session.refresh(ctx)` dopo flush per evitare MissingGreenlet sul lazy-load di `updated_at` (server_default=func.now()) durante serializzazione Pydantic post-commit.
+- Net totale sessione: 76 nuovi backend test (55 Wave 26 foundation + 21 W25-lite), 315 test PASS
 
 **2026-04-18 — Wave 26 MARS foundation execution**
 - Branch `wave-26-mars-foundation` creato da `wave-29-frontend` (layer ortogonale: frontend JS vs backend Python)
