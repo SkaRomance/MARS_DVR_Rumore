@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from src.api.routes import (
     admin_routes,
@@ -26,6 +27,7 @@ from src.api.routes import (
     rag_routes,
     suggestion_routes,
 )
+from src.api.routes.health import mark_startup_complete, reset_startup_complete
 from src.bootstrap.config import get_settings
 from src.bootstrap.database import dispose_engine, init_db
 from src.infrastructure.middleware.audit import AuditMiddleware
@@ -33,8 +35,16 @@ from src.infrastructure.middleware.rate_limiter import (
     close_rate_limiter,
     init_rate_limiter,
 )
+from src.infrastructure.observability.logging import configure_logging, get_logger
+from src.infrastructure.observability.middleware import CorrelationIdMiddleware
 
 settings = get_settings()
+
+configure_logging(
+    log_level=settings.log_level,
+    json_logs=settings.app_env != "development",
+)
+logger = get_logger("mars.bootstrap")
 
 
 @asynccontextmanager
@@ -47,9 +57,13 @@ async def lifespan(app: FastAPI):
         raise RuntimeError("JWT_SECRET_KEY must be set in production")
     await init_db()
     await init_rate_limiter()
+    mark_startup_complete()
+    logger.info("app_startup_complete", env=settings.app_env, version=settings.app_version)
     yield
+    reset_startup_complete()
     await close_rate_limiter()
     await dispose_engine()
+    logger.info("app_shutdown_complete")
 
 
 app = FastAPI(
@@ -62,6 +76,9 @@ app = FastAPI(
 )
 
 app.add_middleware(AuditMiddleware)
+# CorrelationIdMiddleware is added last so it runs first (outermost layer).
+# This guarantees every downstream log line is scoped to the request_id.
+app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -69,6 +86,13 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
     allow_headers=settings.cors_headers,
 )
+
+# Prometheus instrumentation — exposes /metrics with the standard HTTP
+# counters / histograms. Exclude the probes and /metrics itself from the
+# metrics stream so they don't skew latency distributions.
+Instrumentator(
+    excluded_handlers=["/metrics", "/health/live", "/health/ready", "/health/startup"],
+).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
 static_path = Path(__file__).parent.parent.parent / "static"
 app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
