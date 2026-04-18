@@ -17,12 +17,13 @@ a dict-backed fake without touching Redis.
 Cache key format: `mars:tenant:{user_id}` — namespaced so multiple
 services sharing a Redis DB don't collide.
 """
+
 from __future__ import annotations
 
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from src.infrastructure.mars.client import MarsApiClient
@@ -65,11 +66,7 @@ class TenantResolver:
 
         Raises MarsAuthError if the user has no tenant binding.
         """
-        token_expires_at = (
-            datetime.fromtimestamp(claims.expires_at, timezone.utc)
-            if claims.expires_at
-            else None
-        )
+        token_expires_at = datetime.fromtimestamp(claims.expires_at, UTC) if claims.expires_at else None
 
         # Fast path: tenant_id already in JWT
         if claims.tenant_id is not None:
@@ -97,9 +94,7 @@ class TenantResolver:
         # Network path: ask MARS
         me = await self._client.get_me(access_token)
         if me.tenant_id is None:
-            raise MarsAuthError(
-                f"User {claims.user_id} has no tenant binding in MARS"
-            )
+            raise MarsAuthError(f"User {claims.user_id} has no tenant binding in MARS")
 
         context = MarsContext(
             user_id=claims.user_id,

@@ -3,11 +3,12 @@
 Uses httpx.MockTransport (built-in) — no external test deps required.
 Each test supplies its own handler that returns canned responses.
 """
+
 from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -21,7 +22,6 @@ from src.infrastructure.mars.exceptions import (
     MarsUnavailableError,
     MarsValidationError,
 )
-
 
 TOKEN = "test-bearer-token"
 DOC_ID = uuid.uuid4()
@@ -46,7 +46,7 @@ def _me_response_body() -> dict:
 
 
 def _revision_response_body(version: int = 1) -> dict:
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     return {
         "id": str(REV_ID),
         "documentId": str(DOC_ID),
@@ -126,9 +126,7 @@ async def test_get_me_auth_error():
 
 @pytest.mark.asyncio
 async def test_verify_module_enabled():
-    transport = httpx.MockTransport(
-        _handler(200, {"enabled": True, "moduleKey": "noise"})
-    )
+    transport = httpx.MockTransport(_handler(200, {"enabled": True, "moduleKey": "noise"}))
     async with MarsApiClient(base_url="http://mars.test", transport=transport) as cli:
         result = await cli.verify_module(TOKEN, "noise")
     assert result.enabled is True
@@ -137,9 +135,7 @@ async def test_verify_module_enabled():
 
 @pytest.mark.asyncio
 async def test_verify_module_payment_required():
-    transport = httpx.MockTransport(
-        _handler(402, {"message": "module not purchased"})
-    )
+    transport = httpx.MockTransport(_handler(402, {"message": "module not purchased"}))
     async with MarsApiClient(base_url="http://mars.test", transport=transport) as cli:
         with pytest.raises(MarsPaymentRequiredError):
             await cli.verify_module(TOKEN, "chemical")
@@ -197,13 +193,16 @@ async def test_put_module_extensions_with_if_match():
 
     async with MarsApiClient(base_url="http://mars.test", transport=httpx.MockTransport(h)) as cli:
         rev = await cli.put_module_extensions(
-            TOKEN, DOC_ID, REV_ID, "noise",
+            TOKEN,
+            DOC_ID,
+            REV_ID,
+            "noise",
             {"module_version": "0.1.0", "summary": {"lex_8h": 85.2}},
             if_match_version=1,
         )
 
     assert captured["method"] == "PUT"
-    assert captured["path"].endswith(f"/module-extensions/noise")
+    assert captured["path"].endswith("/module-extensions/noise")
     assert captured["if_match"] == "1"
     assert captured["body"]["summary"]["lex_8h"] == 85.2
     assert rev.version == 2
@@ -211,14 +210,10 @@ async def test_put_module_extensions_with_if_match():
 
 @pytest.mark.asyncio
 async def test_put_module_extensions_conflict():
-    transport = httpx.MockTransport(
-        _handler(409, {"message": "version mismatch"})
-    )
+    transport = httpx.MockTransport(_handler(409, {"message": "version mismatch"}))
     async with MarsApiClient(base_url="http://mars.test", transport=transport) as cli:
         with pytest.raises(MarsConflictError):
-            await cli.put_module_extensions(
-                TOKEN, DOC_ID, REV_ID, "noise", {"x": 1}, if_match_version=3
-            )
+            await cli.put_module_extensions(TOKEN, DOC_ID, REV_ID, "noise", {"x": 1}, if_match_version=3)
 
 
 @pytest.mark.asyncio
@@ -237,12 +232,15 @@ async def test_put_module_extensions_validation_error():
 @pytest.mark.asyncio
 async def test_register_module_session():
     transport = httpx.MockTransport(
-        _handler(201, {
-            "sessionId": "sess-1",
-            "moduleKey": "noise",
-            "revisionVersion": 1,
-            "startedAt": datetime.now(timezone.utc).isoformat(),
-        })
+        _handler(
+            201,
+            {
+                "sessionId": "sess-1",
+                "moduleKey": "noise",
+                "revisionVersion": 1,
+                "startedAt": datetime.now(UTC).isoformat(),
+            },
+        )
     )
     async with MarsApiClient(base_url="http://mars.test", transport=transport) as cli:
         session = await cli.register_module_session(TOKEN, DOC_ID, REV_ID, "noise")

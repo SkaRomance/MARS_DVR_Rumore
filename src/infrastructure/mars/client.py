@@ -14,6 +14,7 @@ Design rationale:
   errors (connection refused, DNS, read timeout) retry. 4xx do NOT
   retry (caller bug, no amount of retry fixes it).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -72,7 +73,7 @@ class MarsApiClient:
     async def close(self) -> None:
         await self._client.aclose()
 
-    async def __aenter__(self) -> "MarsApiClient":
+    async def __aenter__(self) -> MarsApiClient:
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
@@ -111,8 +112,12 @@ class MarsApiClient:
                         backoff = 0.5 * (2**attempt)
                         logger.warning(
                             "MARS %s %s -> %d, retry in %.1fs (attempt %d/%d)",
-                            method, path, response.status_code, backoff,
-                            attempt + 1, self._max_retries,
+                            method,
+                            path,
+                            response.status_code,
+                            backoff,
+                            attempt + 1,
+                            self._max_retries,
                         )
                         await asyncio.sleep(backoff)
                         continue
@@ -129,13 +134,16 @@ class MarsApiClient:
                     backoff = 0.5 * (2**attempt)
                     logger.warning(
                         "MARS %s %s transport error: %s, retry in %.1fs (attempt %d/%d)",
-                        method, path, exc, backoff, attempt + 1, self._max_retries,
+                        method,
+                        path,
+                        exc,
+                        backoff,
+                        attempt + 1,
+                        self._max_retries,
                     )
                     await asyncio.sleep(backoff)
                     continue
-                raise MarsUnavailableError(
-                    f"MARS transport error after {self._max_retries} retries: {exc}"
-                ) from exc
+                raise MarsUnavailableError(f"MARS transport error after {self._max_retries} retries: {exc}") from exc
 
         # Should never reach here — loop always returns or raises
         raise MarsUnavailableError(f"MARS request exhausted retries: {last_exc}")
@@ -179,9 +187,7 @@ class MarsApiClient:
 
     async def verify_module(self, token: str, module_key: str) -> MarsModuleVerifyResponse:
         """POST /modules/verify — is this module enabled for the caller's tenant?"""
-        response = await self._request(
-            "POST", "/modules/verify", token, json={"moduleKey": module_key}
-        )
+        response = await self._request("POST", "/modules/verify", token, json={"moduleKey": module_key})
         self._raise_for_status(response, f"verify_module({module_key})")
         return MarsModuleVerifyResponse.model_validate(response.json())
 
@@ -223,14 +229,9 @@ class MarsApiClient:
         headers = {}
         if if_match_version is not None:
             headers["If-Match"] = str(if_match_version)
-        path = (
-            f"/dvr-documents/{document_id}/revisions/{revision_id}"
-            f"/module-extensions/{module_key}"
-        )
+        path = f"/dvr-documents/{document_id}/revisions/{revision_id}/module-extensions/{module_key}"
         response = await self._request("PUT", path, token, json=payload, headers=headers)
-        self._raise_for_status(
-            response, f"put_module_extensions({document_id}, {module_key})"
-        )
+        self._raise_for_status(response, f"put_module_extensions({document_id}, {module_key})")
         return MarsDvrRevisionResponse.model_validate(response.json())
 
     async def register_module_session(
