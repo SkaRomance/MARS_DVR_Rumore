@@ -57,13 +57,37 @@ async def lifespan(app: FastAPI):
         raise RuntimeError("JWT_SECRET_KEY must be set in production")
     await init_db()
     await init_rate_limiter()
+
+    scheduler = None
+    stop_scheduler_fn = None
+    if settings.scheduler_enabled:
+        from src.infrastructure.scheduler.runner import (
+            build_scheduler,
+            start_scheduler,
+            stop_scheduler,
+        )
+
+        scheduler = build_scheduler(timezone=settings.scheduler_timezone)
+        start_scheduler(scheduler)
+        app.state.scheduler = scheduler
+        stop_scheduler_fn = stop_scheduler
+
     mark_startup_complete()
-    logger.info("app_startup_complete", env=settings.app_env, version=settings.app_version)
-    yield
-    reset_startup_complete()
-    await close_rate_limiter()
-    await dispose_engine()
-    logger.info("app_shutdown_complete")
+    logger.info(
+        "app_startup_complete",
+        env=settings.app_env,
+        version=settings.app_version,
+        scheduler_enabled=settings.scheduler_enabled,
+    )
+    try:
+        yield
+    finally:
+        reset_startup_complete()
+        if scheduler is not None and stop_scheduler_fn is not None:
+            stop_scheduler_fn(scheduler)
+        await close_rate_limiter()
+        await dispose_engine()
+        logger.info("app_shutdown_complete")
 
 
 app = FastAPI(
