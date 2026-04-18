@@ -3,10 +3,10 @@
 > Dashboard di stato per ripristino lavoro da altre sessioni/macchine/agenti.
 > Ogni wave aggiorna questo file al completamento.
 
-**Last updated**: 2026-04-18 (Wave 29 completo, Wave 24 parziale, Wave 25 blocked on Docker)
-**Current branch Rumore**: `wave-29-frontend` (8 commit Wave 29, da pushare); planning branch come PR #2
+**Last updated**: 2026-04-18 (Wave 29 completo, Wave 26 foundation completo, Wave 24 parziale, Wave 25 blocked on Docker)
+**Current branch Rumore**: `wave-26-mars-foundation` (branched from wave-29-frontend, 4 commit Task 1-4 + tests); PR #3 Wave 29 aperta
 **Current branch MARS**: `noise-module-integration` (M4 committed, cabcf1f — locale, non pushato)
-**Next action**: (1) Push `wave-29-frontend` e apri PR, (2) coordina con l'altra sessione Claude per Wave 24 residuo, (3) Avvia Docker Desktop per sbloccare Wave 25+27
+**Next action**: (1) Push `wave-26-mars-foundation` e apri PR, (2) Wave 26 Task 5-8 richiedono Wave 25 models, (3) coordina con altra sessione per Wave 24 residuo, (4) Avvia Docker per sbloccare Wave 25+27
 
 ---
 
@@ -33,7 +33,7 @@
 |---|---|---|---|---|
 | W24 | `2026-04-17-wave-24-mars-modifications.md` | 🚧 in-progress | `noise-module-integration` (MARS repo) | M4 done (cabcf1f); M1/M5/M6 bloccati per discrepanza plan vs struttura MARS reale. Deprioritizzato (altra sessione Claude) |
 | W25 | `2026-04-17-wave-25-db-refactoring.md` | ⏸ blocked | `wave-25-db-refactoring` (empty) | Blocked: Docker Desktop non running |
-| W26 | `2026-04-17-wave-26-mars-integration.md` | ⏳ not started | — | Depends on W24+W25 |
+| W26 | `2026-04-17-wave-26-mars-integration.md` | 🚧 foundation done | `wave-26-mars-foundation` | Task 1-4 done (MarsApiClient, JwtValidator, TenantResolver, FastAPI dep). Task 5-8 richiedono modelli Wave 25. 55 unit test PASS. |
 | W27 | `2026-04-17-wave-27-ai-autopilot.md` | ⏳ not started | — | Depends on W26 + DB |
 | W28 | `2026-04-17-wave-28-scheduler.md` | ⏳ not started | — | Code-only is writable ora; tests richiedono DB |
 | **W29** | `2026-04-17-wave-29-frontend.md` | **✅ DONE** | `wave-29-frontend` | 8 commit, 0 Docker dependency, frontend P0 completo |
@@ -121,6 +121,19 @@ git clone https://github.com/SkaRomance/MARS.git MARS_inspect
 - Subagent `mars-backend-dev` spawned su Wave 24 → crash API JSON a 49s; M4 completato e committato (cabcf1f)
 - Scoperta discrepanza plan Wave 24 vs struttura reale MARS flat
 - STATUS.md aggiornato con dettagli e prossimi passi
+
+**2026-04-18 — Wave 26 MARS foundation execution**
+- Branch `wave-26-mars-foundation` creato da `wave-29-frontend` (layer ortogonale: frontend JS vs backend Python)
+- Scoping: solo Task 1-4 DB-independent (Task 5+ richiedono NoiseAssessmentContext da Wave 25)
+- Config: +12 settings `mars_*` in `src/bootstrap/config.py` (dual-algorithm RS256/HS256, JWKS + tenant cache TTLs, retry/timeout)
+- 4 commit atomici con test:
+  - `d0ba41c` MarsApiClient + exceptions + types (16 test)
+  - `51d87ce` MarsJwtValidator + JWKS cache (17 test)
+  - `a27a91d` TenantResolver + Redis duck-type cache (10 test)
+  - `f867d0a` require_mars_context + require_module_access (12 test)
+- Tooling scelto: `httpx.MockTransport` invece di respx, fake in-memory cache invece di fakeredis → zero nuove dep
+- Test suite: 137 unit test PASS, 0 fail, 0 regression su auth/domain/rag esistenti
+- Gap: Task 5 (DvrSnapshotService), Task 6 (route refactor), Task 7 (migration 016), Task 8 (Outbox) bloccati finché Wave 25 DB models esistono
 
 **2026-04-18 — Wave 29 Frontend execution**
 - User pivot: deprioritizza Wave 24 MARS (altra sessione in parallelo), focus su funzionalità modulo Rumore
