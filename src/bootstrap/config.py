@@ -62,6 +62,10 @@ class Settings(BaseSettings):
     mars_http_max_retries: int = 3
     mars_module_key: str = "noise"
 
+    # ── Scheduler (Wave 28) ──
+    scheduler_enabled: bool = False
+    scheduler_timezone: str = "Europe/Rome"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     @model_validator(mode="after")
