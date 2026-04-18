@@ -3,11 +3,12 @@
 > Dashboard di stato per ripristino lavoro da altre sessioni/macchine/agenti.
 > Ogni wave aggiorna questo file al completamento.
 
-**Last updated**: 2026-04-18 (Wave 29 + Wave 26 foundation + W25-lite context end-to-end — tutti pushati)
-**Current branch Rumore**: `wave-25-lite-context` (branched from wave-26-mars-foundation, 4 commit model+migration+service+routes, 21 test)
+**Last updated**: 2026-04-18 (Wave 27 AI Autopilot core end-to-end + Wave 29 + W26 foundation + W25-lite — 4 PR stack su GitHub)
+**Current branch Rumore**: `wave-27-ai-autopilot` (branched from wave-25-lite-context, 5 commit + 60 test)
 **Current branch MARS**: `noise-module-integration` (M4 committed, cabcf1f — locale, non pushato)
-**DB strategy**: Docker ELIMINATO come dipendenza. Il progetto gira su SQLite via conftest TypeDecorator swap (PG types auto-sostituiti in test). Dev può usare `DATABASE_URL=sqlite+aiosqlite:///./dev.sqlite3 make dev`. Production usa Postgres. Alembic migrations targetano PG; tests bypassano Alembic via `Base.metadata.create_all`. **315 test PASS senza Docker.**
-**Next action**: (1) Push `wave-25-lite-context` e apri PR, (2) Wave 27 AI Autopilot (orchestrator agents) adesso possibile con context service attivo, (3) route refactor (W26 Task 6) per wire context_id nelle route esistenti AI/assessments, (4) coordina altra sessione per Wave 24 MARS
+**DB strategy**: Docker ELIMINATO. SQLite via conftest TypeDecorator swap; PG default in prod. **375 test PASS.**
+**Flow E2E funzionante**: frontend iframe → MARS JWT → /contexts/bootstrap → /autopilot/run (SSE) → /suggestions/* (approve/reject/bulk). Mock LLM di default; prod swap via DI.
+**Next action**: (1) Push `wave-27-ai-autopilot` e apri PR, (2) Wire OllamaProvider in prod via dependency_overrides o settings-based factory, (3) Wave 30 Hardening (logging, healthcheck, Prometheus), (4) coordina Wave 24 MARS per l'altra sessione
 
 ---
 
@@ -35,7 +36,7 @@
 | W24 | `2026-04-17-wave-24-mars-modifications.md` | 🚧 in-progress | `noise-module-integration` (MARS repo) | M4 done (cabcf1f); M1/M5/M6 bloccati per discrepanza plan vs struttura MARS reale. Deprioritizzato (altra sessione Claude) |
 | W25 | `2026-04-17-wave-25-db-refactoring.md` | 🔻 descoped → W25-lite | `wave-25-db-refactoring` (empty, deprecato) | Full UUID+outbox refactor deprioritizzato. Scope ridotto a W25-lite: solo NoiseAssessmentContext model/migration/service/routes (4 commit, 21 test). PR #5. |
 | W26 | `2026-04-17-wave-26-mars-integration.md` | 🚧 foundation done | `wave-26-mars-foundation` | Task 1-4 done (MarsApiClient, JwtValidator, TenantResolver, FastAPI dep). Task 5-8 richiedono modelli Wave 25. 55 unit test PASS. |
-| W27 | `2026-04-17-wave-27-ai-autopilot.md` | ⏳ not started | — | Depends on W26 + DB |
+| W27 | `2026-04-17-wave-27-ai-autopilot.md` | ✅ core done | `wave-27-ai-autopilot` | ExposureEstimatorAgent + SuggestionServiceV2 + /suggestions + Orchestrator + /autopilot SSE. Stubs per review/mitigation/narrative agents (future). 60 new test PASS. PR #6 |
 | W28 | `2026-04-17-wave-28-scheduler.md` | ⏳ not started | — | Code-only is writable ora; tests richiedono DB |
 | **W29** | `2026-04-17-wave-29-frontend.md` | **✅ DONE** | `wave-29-frontend` | 8 commit, 0 Docker dependency, frontend P0 completo |
 | W30 | `2026-04-17-wave-30-hardening.md` | ⏳ not started | — | Depends on W26-W28 |
@@ -122,6 +123,18 @@ git clone https://github.com/SkaRomance/MARS.git MARS_inspect
 - Subagent `mars-backend-dev` spawned su Wave 24 → crash API JSON a 49s; M4 completato e committato (cabcf1f)
 - Scoperta discrepanza plan Wave 24 vs struttura reale MARS flat
 - STATUS.md aggiornato con dettagli e prossimi passi
+
+**2026-04-18 — Wave 27 AI Autopilot execution**
+- Branch `wave-27-ai-autopilot` da `wave-25-lite-context`
+- 5 commit atomici:
+  - `e0ac8e7` ExposureEstimatorAgent + prompt ITA (Art. 188 framework, K corrections ISO 9612) + types — 13 test
+  - `58437f3` SuggestionServiceV2 + migration 013 (context_id FK su ai_suggestion, assessment_id nullable) + model adapter — 14 test
+  - `5f6cf53` /suggestions/* routes V2 (by-context, approve, reject, bulk con min_confidence) — 13 test
+  - `1d3b52d` AutopilotOrchestrator (async generator SSE events, ISO 9612 LEX,8h calc, risk banding) — 10 test
+  - `c7d691b` /autopilot/* SSE routes (run streaming, status, cancel, cross-tenant 404, missing snapshot 409) — 10 test
+- Net sessione: 60 nuovi test backend, 375 totali PASS (+60 vs W25-lite)
+- Pattern: MockProvider di default per il LLM → tests deterministici senza API key
+- Stubs intenzionali: review/mitigation/narrative agents emettono step_completed con "pending future wave" — UI Wave 29 progress bar accurata, future agent plug-in senza toccare SSE
 
 **2026-04-18 — W25-lite context service execution**
 - Pivot su "no Docker" per l'utente: scoperto che tests esistenti già giravano su SQLite via conftest TypeDecorator swap → 294 test PASS senza Docker

@@ -37,11 +37,19 @@ class AISuggestion(Base):
         UUID(as_uuid=True), ForeignKey("tenant.id"), nullable=False, index=True
     )
 
-    # Context
-    assessment_id: Mapped[uuid.UUID] = mapped_column(
+    # Context — legacy assessment_id (Wave 16-23) + new context_id (Wave 27)
+    assessment_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        nullable=False,
+        nullable=True,
         index=True,
+        comment="Legacy NoiseAssessment reference (pre-MARS integration)",
+    )
+    context_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("noise_assessment_context.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+        comment="MARS-bound NoiseAssessmentContext reference (Wave 27+)",
     )
     interaction_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
