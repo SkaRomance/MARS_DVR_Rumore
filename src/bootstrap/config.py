@@ -48,6 +48,20 @@ class Settings(BaseSettings):
     keygen_admin_token: str = ""
     license_grace_period_hours: int = 24
 
+    # ── MARS integration (Wave 26) ──
+    mars_api_base_url: str = "http://localhost:5000"
+    mars_jwks_url: str = ""
+    mars_issuer: str = "mars-core"
+    mars_audience: str = "mars-module-noise"
+    mars_jwt_algorithm: str = "RS256"
+    mars_jwt_hs256_secret: str = ""
+    mars_jwks_cache_ttl_seconds: int = 3600
+    mars_tenant_cache_ttl_seconds: int = 300
+    mars_webhook_secret: str = ""
+    mars_http_timeout_seconds: float = 30.0
+    mars_http_max_retries: int = 3
+    mars_module_key: str = "noise"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     @model_validator(mode="after")
