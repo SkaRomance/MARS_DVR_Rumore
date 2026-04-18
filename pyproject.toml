@@ -29,6 +29,7 @@ dependencies = [
     "fastapi-limiter>=0.2.0",
     "pymupdf>=1.27.0",
     "chromadb>=1.5.0",
+    "prometheus-fastapi-instrumentator>=7.0.0",
 ]
 
 [project.optional-dependencies]
